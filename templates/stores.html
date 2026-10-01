@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Browse verified vintage boutiques, sustainable thrift shops, and curated circular fashion spots on ThriftMap.">
+    <title>Browse Stores | ThriftMap</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+
+            --thrift-amber-gold: #d4a373;
+            --thrift-amber-dark: #b08968;
+            --thrift-terracotta: #c85a17;
+
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        /* Hero Directory Banner */
+        .directory-hero {
+            background: linear-gradient(145deg, var(--thrift-forest-dark) 0%, var(--thrift-forest-primary) 65%, var(--thrift-forest-medium) 100%);
+            color: #ffffff;
+            border-radius: 20px;
+            padding: 2.5rem 2.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(15, 41, 30, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .directory-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            right: -60px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(212, 163, 115, 0.25) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(216, 243, 220, 0.18);
+            border: 1px solid rgba(216, 243, 220, 0.35);
+            color: var(--thrift-forest-subtle);
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.85rem;
+            border-radius: 50rem;
+            margin-bottom: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Filter & Search Bar */
+        .filter-panel {
+            background: #ffffff;
+            border: 1px solid var(--thrift-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 8px 24px rgba(15, 41, 30, 0.04);
+            margin-bottom: 2rem;
+        }
+
+        .category-chip-btn {
+            background: var(--thrift-bg-page);
+            border: 1px solid var(--thrift-border);
+            color: var(--thrift-text-main);
+            padding: 0.4rem 1rem;
+            border-radius: 50rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s ease;
+        }
+
+        .category-chip-btn:hover {
+            border-color: var(--thrift-forest-medium);
+            color: var(--thrift-forest-medium);
+            background: var(--thrift-forest-wash);
+        }
+
+        .category-chip-btn.active {
+            background: var(--thrift-forest-primary);
+            border-color: var(--thrift-forest-primary);
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(27, 67, 50, 0.2);
+        }
+
+        /* Store Cards */
+        .store-card {
+            background: #ffffff;
+            border: 1.5px solid var(--thrift-border);
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 6px 18px rgba(15, 41, 30, 0.04);
+            transition: all 0.25s ease;
+            height: 100%;
+        }
+
+        .store-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--thrift-forest-light);
+            box-shadow: 0 14px 32px rgba(15, 41, 30, 0.09);
+        }
+
+        .store-card-header {
+            padding: 1.25rem 1.5rem 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+
+        .category-pill {
+            background: var(--thrift-forest-wash);
+            border: 1px solid var(--thrift-forest-subtle);
+            color: var(--thrift-forest-primary);
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 0.3rem 0.75rem;
+            border-radius: 50rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .city-badge {
+            font-size: 0.82rem;
+            color: var(--thrift-text-muted);
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .store-card-body {
+            padding: 0.75rem 1.5rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .store-card-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            margin-bottom: 0.6rem;
+        }
+
+        .store-card-desc {
+            font-size: 0.9rem;
+            color: var(--thrift-text-muted);
+            line-height: 1.55;
+            margin-bottom: 1.25rem;
+            flex-grow: 1;
+        }
+
+        .store-action-btn {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-primary);
+            border: 1px solid var(--thrift-border);
+            padding: 0.7rem 1.25rem;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.92rem;
+            text-align: center;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .store-action-btn:hover {
+            background: var(--thrift-forest-primary);
+            color: #ffffff;
+            border-color: var(--thrift-forest-primary);
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.2);
+        }
+
+        /* Buttons */
+        .btn-thrift-primary {
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-medium));
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+            padding: 0.65rem 1.4rem;
+            border-radius: 10px;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.2);
+        }
+
+        .btn-thrift-primary:hover {
+            color: #ffffff;
+            background: var(--thrift-forest-dark);
+            transform: translateY(-1px);
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <!-- Mobile Navbar Toggle -->
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent" aria-controls="navbarContent" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4">
+                    <li class="nav-item">
+                        <a href="{{ url_for('home') }}" class="nav-link text-dark fw-medium" id="nav-link-home">
+                            <i class="bi bi-house-door me-1"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('stores') }}" class="nav-link text-success fw-bold active" id="nav-link-stores">
+                            <i class="bi bi-shop me-1"></i> Browse Stores
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-2">
+                    {% if session.get('user_id') %}
+                        <!-- Logged-in State -->
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 d-none d-md-inline-flex align-items-center gap-1">
+                            <i class="bi bi-person-check-fill"></i>
+                            <span>{{ session.get('role')|capitalize }}</span>
+                        </span>
+                        {% if session.get('role') == 'owner' %}
+                            <a href="{{ url_for('owner_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-dashboard">
+                                <i class="bi bi-speedometer2"></i>
+                                <span>Owner Dashboard</span>
+                            </a>
+                        {% elif session.get('role') == 'admin' %}
+                            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-dashboard">
+                                <i class="bi bi-speedometer2"></i>
+                                <span>Admin Dashboard</span>
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('user_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-dashboard">
+                                <i class="bi bi-speedometer2"></i>
+                                <span>My Dashboard</span>
+                            </a>
+                        {% endif %}
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-logout">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span>Logout</span>
+                        </a>
+                    {% else %}
+                        <!-- Guest State -->
+                        <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-login">
+                            <i class="bi bi-box-arrow-in-right"></i>
+                            <span>Login</span>
+                        </a>
+                        <a href="{{ url_for('register') }}" class="btn btn-success btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-register" style="background: var(--thrift-forest-primary); border-color: var(--thrift-forest-primary);">
+                            <i class="bi bi-person-plus"></i>
+                            <span>Register</span>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="py-4 py-md-5" id="main-content">
+        <div class="container">
+
+            <!-- Flashed Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                  <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+                    {% if alert_class == 'success' %}
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    {% elif alert_class == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                    {% elif alert_class == 'info' %}
+                      <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    {% endif %}
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <!-- Directory Hero Banner -->
+            <div class="directory-hero">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="hero-badge-pill">
+                            <i class="bi bi-patch-check-fill"></i>
+                            <span>Verified Thrift Directory</span>
+                        </div>
+                        <h1 class="h2 fw-bold text-white mb-2" id="directory-heading">Discover Thrift Stores Near You</h1>
+                        <p class="text-white-50 mb-0" style="max-width: 600px;">
+                            Browse verified vintage boutiques, sustainable consignment stores, and neighborhood secondhand gems. Filter by category, search by city, or discover new shops.
+                        </p>
+                    </div>
+                    <div class="text-md-end">
+                        <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm" id="badge-total-stores">
+                            <i class="bi bi-shop text-success me-1"></i> {{ total_stores }} Approved Stores
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search & Filter Controls -->
+            <div class="filter-panel" id="search-filter-section">
+                <form action="{{ url_for('stores') }}" method="GET" id="stores-filter-form">
+                    <div class="row g-3 align-items-end">
+                        <!-- Search by Store Name -->
+                        <div class="col-md-4 col-sm-6">
+                            <label for="search-input" class="form-label small fw-bold text-muted mb-1">
+                                <i class="bi bi-search me-1"></i> Search by Store Name
+                            </label>
+                            <input type="text"
+                                   class="form-control rounded-3"
+                                   id="search-input"
+                                   name="search"
+                                   placeholder="e.g. Retro finds, vintage..."
+                                   value="{{ search_query }}">
+                        </div>
+
+                        <!-- Search / Filter by City -->
+                        <div class="col-md-3 col-sm-6">
+                            <label for="city-input" class="form-label small fw-bold text-muted mb-1">
+                                <i class="bi bi-geo-alt me-1"></i> Filter by City
+                            </label>
+                            <input type="text"
+                                   class="form-control rounded-3"
+                                   id="city-input"
+                                   name="city"
+                                   placeholder="e.g. Kochi, Bangalore..."
+                                   value="{{ city_filter }}">
+                        </div>
+
+                        <!-- Filter by Category -->
+                        <div class="col-md-3 col-sm-8">
+                            <label for="category-select" class="form-label small fw-bold text-muted mb-1">
+                                <i class="bi bi-tags me-1"></i> Filter by Category
+                            </label>
+                            <select class="form-select rounded-3" id="category-select" name="category">
+                                <option value="">All Categories</option>
+                                {% for cat in categories %}
+                                    <option value="{{ cat.category_id }}" {% if category_filter == cat.category_id|string or category_filter == cat.category_name %}selected{% endif %}>
+                                        {{ cat.category_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="col-md-2 col-sm-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-thrift-primary flex-grow-1 d-inline-flex align-items-center justify-content-center gap-1" id="btn-apply-filters">
+                                <i class="bi bi-funnel"></i>
+                                <span>Filter</span>
+                            </button>
+                            {% if search_query or city_filter or category_filter %}
+                                <a href="{{ url_for('stores') }}" class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center" title="Reset Filters" id="btn-reset-filters">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Quick Category Filter Chips -->
+                {% if categories %}
+                <hr class="my-3 border-secondary border-opacity-10">
+                <div class="d-flex align-items-center gap-2 flex-wrap" id="quick-category-chips">
+                    <span class="small text-muted fw-semibold me-1">Quick Filter:</span>
+                    <a href="{{ url_for('stores', search=search_query, city=city_filter) }}"
+                       class="category-chip-btn {% if not category_filter %}active{% endif %}"
+                       id="chip-all-categories">
+                        All
+                    </a>
+                    {% for cat in categories %}
+                        <a href="{{ url_for('stores', category=cat.category_id, search=search_query, city=city_filter) }}"
+                           class="category-chip-btn {% if category_filter == cat.category_id|string or category_filter == cat.category_name %}active{% endif %}"
+                           id="chip-cat-{{ cat.category_id }}">
+                            {{ cat.category_name }}
+                        </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Stores Directory Section -->
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h2 class="h5 fw-bold text-dark mb-0">
+                    {% if category_filter or search_query or city_filter %}
+                        Matching Thrift Stores
+                    {% else %}
+                        All Approved Thrift Stores
+                    {% endif %}
+                </h2>
+                <span class="text-muted small">Showing {{ stores|length }} approved shop{{ 's' if stores|length != 1 else '' }}</span>
+            </div>
+
+            <!-- Stores Grid -->
+            {% if stores %}
+                <div class="row g-4" id="public-stores-grid">
+                    {% for store in stores %}
+                        <div class="col-md-6 col-lg-4">
+                            <article class="store-card" id="store-card-{{ store.store_id }}">
+                                <div class="store-card-header">
+                                    <span class="category-pill" id="store-cat-{{ store.store_id }}">
+                                        <i class="bi bi-tag-fill"></i>
+                                        <span>{{ store.category_name }}</span>
+                                    </span>
+                                    <span class="city-badge" id="store-city-{{ store.store_id }}">
+                                        <i class="bi bi-geo-alt-fill text-danger"></i>
+                                        <span>{{ store.city }}</span>
+                                    </span>
+                                </div>
+                                <div class="store-card-body">
+                                    <h3 class="store-card-title" id="store-name-{{ store.store_id }}">{{ store.store_name }}</h3>
+                                    <p class="store-card-desc" id="store-desc-{{ store.store_id }}">
+                                        {% if store.description %}
+                                            {{ store.description[:120] }}{% if store.description|length > 120 %}...{% endif %}
+                                        {% else %}
+                                            Curated secondhand boutique offering pre-loved fashion and accessories.
+                                        {% endif %}
+                                    </p>
+                                    <div class="mt-auto">
+                                        <a href="{{ url_for('store_details', store_id=store.store_id) }}"
+                                           class="store-action-btn"
+                                           id="btn-view-details-{{ store.store_id }}">
+                                            <span>View Details</span>
+                                            <i class="bi bi-arrow-right"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Empty State -->
+                <div class="filter-panel text-center py-5" id="no-stores-found">
+                    <div class="mb-3 text-muted">
+                        <i class="bi bi-search" style="font-size: 3rem; color: var(--thrift-forest-light);"></i>
+                    </div>
+                    <h3 class="h4 fw-bold text-dark mb-2">No Approved Stores Found</h3>
+                    <p class="text-muted mb-4" style="max-width: 480px; margin: 0 auto;">
+                        We couldn't find any approved thrift stores matching your search filters. Try clearing your search or exploring another category.
+                    </p>
+                    <a href="{{ url_for('stores') }}" class="btn btn-thrift-primary d-inline-flex align-items-center gap-2" id="btn-clear-search">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        <span>Reset All Filters</span>
+                    </a>
+                </div>
+            {% endif %}
+
+        </div>
+    </main>
+
+    <!-- Site Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-1">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+            <p class="small text-muted mb-0">Public Thrift Store Directory & Circular Fashion Network</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

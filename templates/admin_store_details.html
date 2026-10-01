@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Store Details - ThriftMap Admin. Comprehensive boutique profile review and approval interface.">
+    <title>{{ store.store_name }} - Store Details | ThriftMap Admin</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Harmonized ThriftMap Design Styles -->
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+
+            --thrift-amber-gold: #d4a373;
+            --thrift-amber-dark: #b08968;
+            --thrift-terracotta: #c85a17;
+
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        /* Details Card */
+        .details-card {
+            background: #ffffff;
+            border: 1px solid var(--thrift-border);
+            border-radius: 20px;
+            box-shadow: 0 16px 40px rgba(15, 41, 30, 0.06);
+            overflow: hidden;
+        }
+
+        .details-header-banner {
+            background: linear-gradient(145deg, #0b1d15 0%, #15291f 65%, #234737 100%);
+            color: #ffffff;
+            padding: 2.25rem 2.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .details-header-banner::after {
+            content: '';
+            position: absolute;
+            bottom: -50px;
+            right: -50px;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(64, 145, 108, 0.3) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .details-body {
+            padding: 2.5rem;
+        }
+
+        @media (max-width: 767.98px) {
+            .details-body {
+                padding: 1.5rem 1.25rem;
+            }
+            .details-header-banner {
+                padding: 1.75rem 1.25rem;
+            }
+        }
+
+        /* Section Titles */
+        .section-header {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1.5px solid var(--thrift-border);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-group {
+            background: var(--thrift-forest-wash);
+            border: 1px solid rgba(45, 106, 79, 0.12);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            height: 100%;
+        }
+
+        .info-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--thrift-text-muted);
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+        }
+
+        .info-value {
+            font-size: 1rem;
+            color: var(--thrift-text-main);
+            font-weight: 600;
+            word-break: break-word;
+        }
+
+        .category-badge {
+            background: #ffffff;
+            color: var(--thrift-forest-primary);
+            border: 1px solid var(--thrift-forest-subtle);
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 50rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* Action Bar */
+        .action-callout {
+            background: #fff8f0;
+            border: 1.5px solid #faedcd;
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .btn-approve-lg {
+            background: #2d6a4f;
+            color: #ffffff;
+            border: none;
+            padding: 0.65rem 1.5rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.2);
+        }
+        .btn-approve-lg:hover {
+            background: #1b4332;
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+
+        .btn-reject-lg {
+            background: #fff1f2;
+            color: #dc3545;
+            border: 1.5px solid #fecdd3;
+            padding: 0.65rem 1.5rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.25s ease;
+        }
+        .btn-reject-lg:hover {
+            background: #dc3545;
+            color: #ffffff;
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Site Header / Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <a href="{{ url_for('admin_stores') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-back-stores">
+                    <i class="bi bi-arrow-left"></i>
+                    <span>All Stores</span>
+                </a>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-dashboard">
+                    <i class="bi bi-speedometer2"></i>
+                    <span class="d-none d-md-inline">Dashboard</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-logout-btn">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Section -->
+    <main class="py-4 py-md-5" id="main-content">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-xl-9 col-lg-10">
+
+                    <!-- Flashed Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        {% for category, message in messages %}
+                          {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                          <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+                            {% if alert_class == 'success' %}
+                              <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                            {% elif alert_class == 'warning' %}
+                              <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                            {% elif alert_class == 'info' %}
+                              <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                            {% else %}
+                              <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                            {% endif %}
+                            <div class="flex-grow-1">{{ message }}</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>
+                        {% endfor %}
+                      {% endif %}
+                    {% endwith %}
+
+                    <!-- Main Details Card -->
+                    <div class="details-card">
+
+                        <!-- Header Banner -->
+                        <div class="details-header-banner">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                                <div>
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <span class="badge bg-white text-dark px-3 py-1 rounded-pill fw-semibold">
+                                            Store #{{ store.store_id }}
+                                        </span>
+                                        <span class="category-badge">
+                                            <i class="bi bi-tag-fill"></i>
+                                            <span>{{ store.category_name or 'Uncategorized' }}</span>
+                                        </span>
+                                    </div>
+                                    <h1 class="h2 fw-bold text-white mb-1" id="detail-store-name">{{ store.store_name }}</h1>
+                                    <p class="text-white-50 mb-0 small">
+                                        Submitted by <strong>{{ store.owner_name }}</strong> ({{ store.owner_email }})
+                                    </p>
+                                </div>
+                                <div class="text-md-end">
+                                    {% if store.status == 'approved' %}
+                                        <span class="badge bg-success text-white px-3 py-2 rounded-pill shadow-sm" id="detail-store-status">
+                                            <i class="bi bi-check-circle-fill me-1"></i> Status: Approved
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm" id="detail-store-status">
+                                            <i class="bi bi-clock-history me-1"></i> Status: Pending Review
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Body Content -->
+                        <div class="details-body">
+
+                            <!-- Approval Action Callout (If Pending) -->
+                            {% if store.status == 'pending' %}
+                            <div class="action-callout" id="approval-callout">
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="feature-icon-circle bg-warning-subtle text-warning p-2 rounded-3 fs-4">
+                                        <i class="bi bi-hourglass-split"></i>
+                                    </div>
+                                    <div>
+                                        <h5 class="fw-bold text-dark mb-0">Pending Administrator Approval</h5>
+                                        <p class="small text-muted mb-0">This store listing is not yet visible to the public. Verify the submitted details below before approving.</p>
+                                    </div>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <form action="{{ url_for('admin_approve_store', store_id=store.store_id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-approve-lg d-inline-flex align-items-center gap-1" id="details-btn-approve">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                            <span>Approve Store</span>
+                                        </button>
+                                    </form>
+                                    <form action="{{ url_for('admin_reject_store', store_id=store.store_id) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Are you sure you want to reject and permanently delete this store?');">
+                                        <button type="submit" class="btn btn-reject-lg d-inline-flex align-items-center gap-1" id="details-btn-reject">
+                                            <i class="bi bi-trash"></i>
+                                            <span>Reject</span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Section 1: Store Overview -->
+                            <div class="section-header">
+                                <i class="bi bi-info-circle-fill text-success"></i>
+                                <span>Store Overview</span>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Store ID</div>
+                                        <div class="info-value" id="field-store-id">#{{ store.store_id }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Category</div>
+                                        <div class="info-value" id="field-category">{{ store.category_name or 'Uncategorized' }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Status</div>
+                                        <div class="info-value">
+                                            <span class="badge {% if store.status == 'approved' %}bg-success{% else %}bg-warning text-dark{% endif %} rounded-pill">
+                                                {{ store.status|capitalize }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="info-group">
+                                        <div class="info-label">Description</div>
+                                        <div class="info-value fw-normal" id="field-description">
+                                            {{ store.description or 'No description provided.' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 2: Store Owner Information -->
+                            <div class="section-header">
+                                <i class="bi bi-person-badge-fill text-success"></i>
+                                <span>Owner Profile</span>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Owner Name</div>
+                                        <div class="info-value" id="field-owner-name">{{ store.owner_name }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="info-group">
+                                        <div class="info-label">Owner Email</div>
+                                        <div class="info-value" id="field-owner-email">{{ store.owner_email }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="info-group">
+                                        <div class="info-label">Owner User ID</div>
+                                        <div class="info-value">#{{ store.owner_id }}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 3: Location & Contact -->
+                            <div class="section-header">
+                                <i class="bi bi-geo-alt-fill text-success"></i>
+                                <span>Location & Contact</span>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-8">
+                                    <div class="info-group">
+                                        <div class="info-label">Physical Address</div>
+                                        <div class="info-value" id="field-address">{{ store.address }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">City</div>
+                                        <div class="info-value" id="field-city">{{ store.city }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-group">
+                                        <div class="info-label">Contact Number</div>
+                                        <div class="info-value" id="field-contact-number">{{ store.contact_number }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="info-group">
+                                        <div class="info-label">Opening Hours</div>
+                                        <div class="info-value" id="field-opening-hours">
+                                            {{ store.opening_hours or 'Not specified' }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section 4: Geolocation & Media -->
+                            <div class="section-header">
+                                <i class="bi bi-pin-map-fill text-success"></i>
+                                <span>Geolocation, Media & Registration</span>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Latitude</div>
+                                        <div class="info-value" id="field-latitude">
+                                            {{ store.latitude if store.latitude is not none else 'Not provided' }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Longitude</div>
+                                        <div class="info-value" id="field-longitude">
+                                            {{ store.longitude if store.longitude is not none else 'Not provided' }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="info-group">
+                                        <div class="info-label">Created Date</div>
+                                        <div class="info-value" id="field-created-at">
+                                            {% if store.created_at %}
+                                                {{ store.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="info-group">
+                                        <div class="info-label">Store Image</div>
+                                        <div class="info-value fw-normal" id="field-image">
+                                            {% if store.image %}
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <i class="bi bi-image text-success"></i>
+                                                    <span>{{ store.image }}</span>
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">No image uploaded</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Action Buttons -->
+                            <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 pt-3 border-top">
+                                <a href="{{ url_for('admin_stores') }}" class="btn btn-outline-secondary px-4 py-2 rounded-pill" id="btn-back-bottom">
+                                    <i class="bi bi-arrow-left me-1"></i> Back to Store List
+                                </a>
+
+                                {% if store.status == 'pending' %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <form action="{{ url_for('admin_reject_store', store_id=store.store_id) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Are you sure you want to reject and remove this store?');">
+                                        <button type="submit" class="btn btn-outline-danger px-4 py-2 rounded-pill" id="bottom-btn-reject">
+                                            <i class="bi bi-x-lg me-1"></i> Reject Store
+                                        </button>
+                                    </form>
+                                    <form action="{{ url_for('admin_approve_store', store_id=store.store_id) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-success px-4 py-2 rounded-pill" id="bottom-btn-approve">
+                                            <i class="bi bi-check-lg me-1"></i> Approve Store
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Site Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-1">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+            <p class="small text-muted mb-0">Logged in as <strong>{{ full_name }}</strong> ({{ role }})</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>

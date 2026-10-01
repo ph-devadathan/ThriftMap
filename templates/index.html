@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ThriftMap - Find unique vintage clothing, curated secondhand boutiques, and sustainable fashion near you. Reduce waste and style sustainably.">
+    <title>ThriftMap - The Ultimate Thrift Shop Finder</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="site-header" id="header">
+        <div class="header-container">
+            <a href="/" class="brand-logo" id="brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span class="brand-name">Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <!-- Mobile Hamburger Toggle -->
+            <button class="mobile-toggle" id="mobile-toggle" aria-label="Toggle Navigation Menu">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </button>
+
+            <!-- Navigation Links: Home | Stores | Login | Register | Dashboard -->
+            <nav class="main-nav" id="main-nav">
+                <ul class="nav-list">
+                    <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link active" id="nav-home">Home</a></li>
+                    <li class="nav-item"><a href="{{ url_for('stores') }}" class="nav-link" id="nav-stores">Stores</a></li>
+                    {% if session.get('user_id') %}
+                        {% if session.get('role') == 'owner' %}
+                            <li class="nav-item"><a href="{{ url_for('owner_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
+                        {% elif session.get('role') == 'admin' %}
+                            <li class="nav-item"><a href="{{ url_for('admin_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
+                        {% else %}
+                            <li class="nav-item"><a href="{{ url_for('user_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
+                        {% endif %}
+                        <li class="nav-item"><a href="{{ url_for('logout') }}" class="nav-link text-danger" id="nav-logout">Logout</a></li>
+                    {% else %}
+                        <li class="nav-item"><a href="{{ url_for('login') }}" class="nav-link" id="nav-login">Login</a></li>
+                        <li class="nav-item"><a href="{{ url_for('register') }}" class="nav-link nav-btn-register" id="nav-register">Register</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- Hero Section -->
+        <section class="hero-section" id="hero">
+            <div class="hero-glow-bg"></div>
+            <div class="hero-glow-secondary"></div>
+            <div class="hero-container">
+                <div class="hero-content">
+                    <div class="hero-badge">
+                        <span class="badge-dot"></span>
+                        <span>Curated Pre-Loved Style</span>
+                    </div>
+
+                    <!-- Single h1 for SEO and Visual Impact -->
+                    <h1 class="hero-title" id="hero-heading">Discover Thrift Stores Near You</h1>
+
+                    <p class="hero-subtitle">
+                        The ultimate directory of handpicked thrift boutiques, vintage curators, and circular fashion hubs. Find distinctive pieces that celebrate your individuality while keeping textile waste out of landfills.
+                    </p>
+
+                    <!-- Search Box Form -->
+                    <form action="{{ url_for('stores') }}" method="GET" class="hero-actions-row" id="hero-search-form">
+                        <div class="hero-search-wrapper">
+                            <div class="search-box">
+                                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" name="search" id="hero-search-input" placeholder="Search thrift stores by name or city..." aria-label="Search stores">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn-primary" id="btn-hero-search">
+                            <span>Search</span>
+                            <svg class="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                    </form>
+
+                    <!-- Hero Action Buttons: Browse Stores | Login | Register -->
+                    <div class="hero-btn-row" id="hero-action-buttons">
+                        <a href="{{ url_for('stores') }}" class="btn-hero-browse" id="btn-hero-browse">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
+                            <span>Browse Stores</span>
+                        </a>
+                        {% if not session.get('user_id') %}
+                            <a href="{{ url_for('login') }}" class="btn-hero-login" id="btn-hero-login">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                                    <polyline points="10 17 15 12 10 7"></polyline>
+                                    <line x1="15" y1="12" x2="3" y2="12"></line>
+                                </svg>
+                                <span>Login</span>
+                            </a>
+                            <a href="{{ url_for('register') }}" class="btn-hero-register" id="btn-hero-register">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="8.5" cy="7" r="4"></circle>
+                                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                                    <line x1="23" y1="11" x2="17" y2="11"></line>
+                                </svg>
+                                <span>Register</span>
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for('user_dashboard') if session.get('role') == 'user' else (url_for('owner_dashboard') if session.get('role') == 'owner' else url_for('admin_dashboard')) }}" class="btn-hero-login" id="btn-hero-dashboard">
+                                <span>Go to Dashboard</span>
+                            </a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Hero Stats / Social Proof -->
+                    <div class="hero-metrics">
+                        <div class="metric-item">
+                            <span class="metric-number">100%</span>
+                            <span class="metric-label">Approved Stores</span>
+                        </div>
+                        <div class="metric-divider"></div>
+                        <div class="metric-item">
+                            <span class="metric-number">Curated</span>
+                            <span class="metric-label">Local Boutiques</span>
+                        </div>
+                        <div class="metric-divider"></div>
+                        <div class="metric-item">
+                            <span class="metric-number">Eco</span>
+                            <span class="metric-label">Circular Fashion</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero Visual Showcase -->
+                <div class="hero-visual-wrapper">
+                    <div class="hero-image-card">
+                        <img src="{{ url_for('static', filename='images/hero.jpg') }}" alt="Aesthetic vintage thrift boutique with sustainable garments" class="hero-image" id="hero-img">
+                        <div class="hero-image-overlay"></div>
+
+                        <!-- Floating Micro-Interaction Badges -->
+                        <div class="floating-badge badge-top-right">
+                            <div class="badge-icon-wrap amber">★</div>
+                            <div>
+                                <span class="badge-label">Community Score</span>
+                                <span class="badge-val">4.9 / 5.0 Rating</span>
+                            </div>
+                        </div>
+
+                        <div class="floating-badge badge-bottom-left">
+                            <div class="badge-icon-wrap emerald">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <span class="badge-label">Planet Friendly</span>
+                                <span class="badge-val">70% Avg. Savings</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Featured Stores Section -->
+        <section class="stores-section" id="stores">
+            <div class="section-container">
+                <div class="section-header">
+                    <div class="section-eyebrow">Handpicked Directory</div>
+                    <h2 class="section-title">Featured Approved Stores</h2>
+                    <p class="section-subtitle">Browse verified local shops known for quality curation, fair pricing, and distinct vintage aesthetics.</p>
+                </div>
+
+                <!-- Dynamic Category Filter Chips -->
+                <div class="filter-chips-container" id="filter-chips">
+                    <a href="{{ url_for('stores') }}" class="filter-chip active" id="filter-all">All Stores</a>
+                    {% for cat in categories %}
+                        <a href="{{ url_for('stores', category=cat.category_id) }}" class="filter-chip" id="filter-cat-{{ cat.category_id }}">
+                            {{ cat.category_name }}
+                        </a>
+                    {% endfor %}
+                </div>
+
+                <!-- Approved Store Cards Grid -->
+                <div class="stores-grid" id="stores-grid">
+                    {% if stores %}
+                        {% for store in stores %}
+                            <article class="store-card" id="home-store-{{ store.store_id }}">
+                                <div class="store-card-banner banner-vintage">
+                                    <div class="store-chip">Approved</div>
+                                    <div class="store-rating">📍 {{ store.city }}</div>
+                                </div>
+                                <div class="store-card-body">
+                                    <span class="store-tag">{{ store.category_name }}</span>
+                                    <h3 class="store-name">{{ store.store_name }}</h3>
+                                    <p class="store-desc">
+                                        {% if store.description %}
+                                            {{ store.description[:110] }}{% if store.description|length > 110 %}...{% endif %}
+                                        {% else %}
+                                            Curated pre-loved clothing, sustainable accessories and vintage gems.
+                                        {% endif %}
+                                    </p>
+                                    <div class="store-meta">
+                                        <span class="meta-item">📍 {{ store.city }}</span>
+                                        <span class="meta-status status-open">● Verified</span>
+                                    </div>
+                                    <a href="{{ url_for('store_details', store_id=store.store_id) }}" class="store-action-btn" id="btn-store-{{ store.store_id }}">
+                                        View Details →
+                                    </a>
+                                </div>
+                            </article>
+                        {% endfor %}
+                    {% else %}
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem 1rem; background: var(--color-bg-page); border-radius: 16px; border: 1px dashed var(--color-border);">
+                            <p style="color: var(--color-text-muted); font-size: 1.1rem; margin-bottom: 1rem;">No approved stores listed yet. Stay tuned as new vintage boutiques join!</p>
+                            <a href="{{ url_for('stores') }}" class="btn-primary">Browse All Stores</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <!-- Value Proposition Section -->
+        <section class="features-section" id="why-thrift">
+            <div class="section-container">
+                <div class="section-header">
+                    <div class="section-eyebrow">The Thrift Revolution</div>
+                    <h2 class="section-title">Why Thrift with ThriftMap?</h2>
+                    <p class="section-subtitle">Smart thrifting is better for your wallet, your unique wardrobe, and our living planet.</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Verified Local Boutiques</h3>
+                        <p class="feature-desc">Every shop listed is carefully verified for curated quality, fair pricing, and genuine secondhand authenticity.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Circular Fashion Impact</h3>
+                        <p class="feature-desc">Diverting garments from landfills saves millions of liters of clean water and significantly reduces emissions.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                                <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                            </svg>
+                        </div>
+                        <h3 class="feature-title">Unrepeatable Style</h3>
+                        <p class="feature-desc">Step away from cookie-cutter mass production. Wear pieces that carry history, craftsmanship, and timeless charm.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Banner -->
+        <section class="cta-banner-section">
+            <div class="section-container">
+                <div class="cta-banner">
+                    <div class="cta-banner-content">
+                        <h2 class="cta-banner-title">Know an incredible local thrift shop?</h2>
+                        <p class="cta-banner-text">Help grow the circular fashion movement by joining the ThriftMap community today.</p>
+                    </div>
+                    <div class="cta-banner-actions">
+                        <a href="{{ url_for('register') }}" class="btn-primary btn-light" id="btn-banner-register">
+                            <span>Join ThriftMap</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Semantic Footer -->
+    <footer class="site-footer" id="footer">
+        <div class="footer-container">
+            <div class="footer-brand-col">
+                <div class="brand-logo">
+                    <div class="brand-icon-wrapper">
+                        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                        </svg>
+                    </div>
+                    <span class="brand-name">Thrift<span class="brand-accent">Map</span></span>
+                </div>
+                <p class="footer-tagline">The Ultimate Thrift Shop Finder. Celebrating circular fashion, local discovery, and sustainable vintage style.</p>
+            </div>
+
+            <div class="footer-links-col">
+                <h4 class="footer-col-title">Explore</h4>
+                <ul class="footer-list">
+                    <li><a href="/" id="footer-link-home">Home</a></li>
+                    <li><a href="#stores" id="footer-link-stores">Stores Directory</a></li>
+                    <li><a href="#why-thrift" id="footer-link-about">Why Thrift</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-links-col">
+                <h4 class="footer-col-title">Account</h4>
+                <ul class="footer-list">
+                    <li><a href="{{ url_for('login') }}" id="footer-link-login">Login</a></li>
+                    <li><a href="{{ url_for('register') }}" id="footer-link-register">Register</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="footer-bottom-container">
+                <p>© 2026 ThriftMap. All rights reserved. Circular fashion for a greener tomorrow.</p>
+                <p class="footer-meta-note">Powered by Flask & Modern Responsive Web Design</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive Toast Notification -->
+    <div class="toast-notification" id="toast-notification">
+        <span class="toast-icon">🌿</span>
+        <span class="toast-text" id="toast-text">Notice</span>
+    </div>
+
+    <!-- Client-side Interactive Behavior -->
+    <script>
+        // Mobile Navigation Toggle
+        const mobileToggle = document.getElementById('mobile-toggle');
+        const mainNav = document.getElementById('main-nav');
+        if (mobileToggle && mainNav) {
+            mobileToggle.addEventListener('click', () => {
+                mobileToggle.classList.toggle('active');
+                mainNav.classList.toggle('open');
+            });
+        }
+
+        // Store Category Filter Chips
+        const filterChips = document.querySelectorAll('.filter-chip');
+        const storeCards = document.querySelectorAll('.store-card');
+
+        filterChips.forEach(chip => {
+            chip.addEventListener('click', () => {
+                filterChips.forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                const filter = chip.getAttribute('data-filter');
+
+                storeCards.forEach(card => {
+                    if (filter === 'all' || card.getAttribute('data-category') === filter) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            });
+        });
+
+        // Toast feedback utility
+        function showNotice(msg) {
+            const toast = document.getElementById('toast-notification');
+            const toastText = document.getElementById('toast-text');
+            if (!toast || !toastText) return;
+            toastText.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3500);
+        }
+    </script>
+</body>
+</html>

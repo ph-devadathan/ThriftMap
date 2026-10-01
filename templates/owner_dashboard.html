@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Owner Dashboard - ThriftMap. Register vintage boutiques, manage store listings, and view customer reviews.">
+    <title>Owner Dashboard | ThriftMap</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Harmonized ThriftMap Design Styles -->
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+
+            --thrift-amber-gold: #d4a373;
+            --thrift-amber-dark: #b08968;
+            --thrift-terracotta: #c85a17;
+
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        /* Hero Welcome Banner */
+        .dashboard-hero {
+            background: linear-gradient(145deg, var(--thrift-forest-dark) 0%, #1e453e 65%, var(--thrift-forest-medium) 100%);
+            color: #ffffff;
+            border-radius: 20px;
+            padding: 2.25rem 2.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(15, 41, 30, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            right: -60px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(200, 90, 23, 0.22) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .role-badge {
+            background: rgba(255, 248, 240, 0.18);
+            border: 1px solid rgba(212, 163, 115, 0.4);
+            color: #faedcd;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.85rem;
+            border-radius: 50rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Menu Action Cards */
+        .menu-card {
+            background: #ffffff;
+            border: 1.5px solid var(--thrift-border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: var(--thrift-text-main);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.25s ease;
+            box-shadow: 0 6px 18px rgba(15, 41, 30, 0.04);
+            height: 100%;
+        }
+
+        .menu-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--thrift-forest-light);
+            box-shadow: 0 12px 28px rgba(15, 41, 30, 0.09);
+            color: var(--thrift-text-main);
+        }
+
+        .menu-card.logout-card:hover {
+            border-color: #dc3545;
+            box-shadow: 0 12px 28px rgba(220, 53, 69, 0.12);
+        }
+
+        .menu-icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            margin-bottom: 1rem;
+            transition: transform 0.2s ease;
+        }
+
+        .menu-card:hover .menu-icon-box {
+            transform: scale(1.06);
+        }
+
+        .icon-box-primary {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-primary);
+            border: 1px solid var(--thrift-forest-subtle);
+        }
+
+        .icon-box-amber {
+            background: #fff8f0;
+            color: #b08968;
+            border: 1px solid #faedcd;
+        }
+
+        .icon-box-terracotta {
+            background: #fdf2e9;
+            color: var(--thrift-terracotta);
+            border: 1px solid #f9d5c4;
+        }
+
+        .icon-box-danger {
+            background: #fff1f2;
+            color: #dc3545;
+            border: 1px solid #fecdd3;
+        }
+
+        .menu-title {
+            font-weight: 700;
+            font-size: 1.08rem;
+            margin-bottom: 0.35rem;
+            color: var(--thrift-forest-dark);
+        }
+
+        .menu-desc {
+            font-size: 0.85rem;
+            color: var(--thrift-text-muted);
+            margin: 0;
+            line-height: 1.45;
+        }
+
+        .menu-arrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.84rem;
+            font-weight: 600;
+            color: var(--thrift-forest-medium);
+            margin-top: 1.25rem;
+        }
+
+        .logout-card .menu-arrow {
+            color: #dc3545;
+        }
+
+        /* Placeholder Content Panel */
+        .content-panel {
+            background: #ffffff;
+            border: 1px solid var(--thrift-border);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 24px rgba(15, 41, 30, 0.04);
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Site Header / Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill px-3 py-2 d-none d-sm-inline-flex align-items-center gap-1">
+                    <i class="bi bi-shop-window"></i>
+                    <span>Store Owner Portal</span>
+                </span>
+                <a href="{{ url_for('home') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-house-door"></i>
+                    <span class="d-none d-md-inline">Home</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-logout-btn">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="py-4 py-md-5" id="main-content">
+        <div class="container">
+
+            <!-- Flashed Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                  <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+                    {% if alert_class == 'success' %}
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    {% elif alert_class == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                    {% elif alert_class == 'info' %}
+                      <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    {% endif %}
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <!-- Welcome Hero Banner -->
+            <div class="dashboard-hero mb-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="role-badge mb-2">
+                            <i class="bi bi-shop"></i>
+                            <span>Role: {{ role }}</span>
+                        </div>
+                        <h1 class="h2 fw-bold text-white mb-1">Welcome {{ full_name }}</h1>
+                        <p class="text-white-50 mb-0 small">
+                            Showcase your thrift boutique, manage store details, announce new clothing drops, and connect directly with thrifters.
+                        </p>
+                    </div>
+                    <div class="text-md-end">
+                        <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-patch-check-fill text-warning me-1"></i> Verified Owner Portal
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Section Header -->
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h2 class="h5 fw-bold text-dark mb-0">Owner Dashboard Menu</h2>
+                <span class="text-muted small">Store Management & Operations</span>
+            </div>
+
+            <!-- Owner Menu Cards Grid: Add Store | Manage Stores | View Reviews | Logout -->
+            <div class="row g-3 g-md-4 mb-4">
+                <!-- 1. Add Store -->
+                <div class="col-md-6 col-lg-3">
+                    <a href="{{ url_for('add_store') }}" class="menu-card" id="menu-add-store">
+                        <div>
+                            <div class="menu-icon-box icon-box-primary">
+                                <i class="bi bi-plus-circle"></i>
+                            </div>
+                            <h3 class="menu-title">Add Store</h3>
+                            <p class="menu-desc">Register a new secondhand boutique with operating hours, category tags, and address.</p>
+                        </div>
+                        <span class="menu-arrow">Create Store <i class="bi bi-arrow-right"></i></span>
+                    </a>
+                </div>
+
+                <!-- 2. Manage Stores -->
+                <div class="col-md-6 col-lg-3">
+                    <a href="{{ url_for('manage_stores') }}" class="menu-card" id="menu-manage-stores">
+                        <div>
+                            <div class="menu-icon-box icon-box-amber">
+                                <i class="bi bi-shop-window"></i>
+                            </div>
+                            <h3 class="menu-title">Manage Stores</h3>
+                            <p class="menu-desc">Update boutique photos, edit contact information, and modify storefront status.</p>
+                        </div>
+                        <span class="menu-arrow">Manage Listings <i class="bi bi-arrow-right"></i></span>
+                    </a>
+                </div>
+
+                <!-- 3. View Reviews -->
+                <div class="col-md-6 col-lg-3">
+                    <a href="#reviews" class="menu-card" id="menu-view-reviews">
+                        <div>
+                            <div class="menu-icon-box icon-box-terracotta">
+                                <i class="bi bi-chat-square-quote"></i>
+                            </div>
+                            <h3 class="menu-title">View Reviews</h3>
+                            <p class="menu-desc">Read feedback left by conscious shoppers, review store ratings, and answer questions.</p>
+                        </div>
+                        <span class="menu-arrow">Read Reviews <i class="bi bi-arrow-right"></i></span>
+                    </a>
+                </div>
+
+                <!-- 4. Logout -->
+                <div class="col-md-6 col-lg-3">
+                    <a href="{{ url_for('logout') }}" class="menu-card logout-card" id="menu-logout">
+                        <div>
+                            <div class="menu-icon-box icon-box-danger">
+                                <i class="bi bi-box-arrow-right"></i>
+                            </div>
+                            <h3 class="menu-title text-danger">Logout</h3>
+                            <p class="menu-desc">Sign out of your boutique curator account and terminate active session.</p>
+                        </div>
+                        <span class="menu-arrow text-danger">Sign Out <i class="bi bi-arrow-right"></i></span>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Placeholder Information Panel -->
+            <div class="content-panel">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="feature-icon-circle bg-warning-subtle text-dark p-3 rounded-3 fs-4">
+                        <i class="bi bi-shop"></i>
+                    </div>
+                    <div>
+                        <h4 class="fw-bold mb-1">Boutique Owner Hub</h4>
+                        <p class="text-muted small mb-0">Role: <strong>{{ role }}</strong> | Owner ID: <strong>#{{ session.get('user_id') }}</strong></p>
+                    </div>
+                </div>
+                <hr class="border-secondary border-opacity-10 my-3">
+                <div class="alert alert-light border border-warning-subtle rounded-3 p-3 mb-0">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle-fill text-warning fs-5 mt-1"></i>
+                        <div>
+                            <h6 class="fw-semibold text-dark mb-1">Store Owner Features Initialized</h6>
+                            <p class="small text-muted mb-0">
+                                This placeholder dashboard is guarded with role verification for store curators. In the upcoming phase, boutique listings will link directly into MySQL tables for inventory curation and storefront management.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Site Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-1">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+            <p class="small text-muted mb-0">Logged in as <strong>{{ full_name }}</strong> ({{ role }})</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>

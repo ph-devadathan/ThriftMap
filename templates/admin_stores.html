@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin Store Management - ThriftMap. Moderate, review, approve, and audit boutique listings.">
+    <title>Manage Stores | ThriftMap Admin</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Harmonized ThriftMap Design Styles -->
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+
+            --thrift-amber-gold: #d4a373;
+            --thrift-amber-dark: #b08968;
+            --thrift-terracotta: #c85a17;
+
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        /* Hero Banner */
+        .dashboard-hero {
+            background: linear-gradient(145deg, #0b1d15 0%, #15291f 65%, #234737 100%);
+            color: #ffffff;
+            border-radius: 20px;
+            padding: 2.25rem 2.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(15, 41, 30, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            right: -60px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(64, 145, 108, 0.3) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .role-badge {
+            background: rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 0.35rem 0.85rem;
+            border-radius: 50rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Filter Pills */
+        .filter-nav {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+
+        .filter-tab {
+            padding: 0.55rem 1.25rem;
+            border-radius: 50rem;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            color: var(--thrift-text-muted);
+            border: 1.5px solid var(--thrift-border);
+        }
+
+        .filter-tab:hover {
+            color: var(--thrift-forest-dark);
+            border-color: var(--thrift-forest-light);
+            background: var(--thrift-forest-wash);
+        }
+
+        .filter-tab.active {
+            background: var(--thrift-forest-primary);
+            color: #ffffff;
+            border-color: var(--thrift-forest-primary);
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .filter-tab .badge {
+            font-size: 0.78rem;
+            padding: 0.25rem 0.55rem;
+            border-radius: 50rem;
+        }
+
+        .filter-tab.active .badge {
+            background-color: rgba(255, 255, 255, 0.25) !important;
+            color: #ffffff !important;
+        }
+
+        /* Content Card */
+        .manage-card {
+            background: #ffffff;
+            border: 1px solid var(--thrift-border);
+            border-radius: 18px;
+            box-shadow: 0 8px 24px rgba(15, 41, 30, 0.05);
+            overflow: hidden;
+        }
+
+        .card-header-custom {
+            padding: 1.25rem 1.75rem;
+            background: #ffffff;
+            border-bottom: 1px solid var(--thrift-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        /* Table Styling */
+        .table-responsive {
+            border: none;
+        }
+
+        .custom-table {
+            margin-bottom: 0;
+            vertical-align: middle;
+        }
+
+        .custom-table thead th {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-dark);
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.86rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 1rem 1.15rem;
+            border-bottom: 1.5px solid var(--thrift-border);
+            white-space: nowrap;
+        }
+
+        .custom-table tbody td {
+            padding: 1rem 1.15rem;
+            border-bottom: 1px solid rgba(45, 106, 79, 0.08);
+            color: var(--thrift-text-main);
+            font-size: 0.92rem;
+        }
+
+        .custom-table tbody tr:hover {
+            background-color: rgba(216, 243, 220, 0.15);
+        }
+
+        .store-title-cell {
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            font-family: var(--font-heading);
+            font-size: 0.98rem;
+        }
+
+        .owner-cell {
+            line-height: 1.35;
+        }
+
+        .category-badge {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-primary);
+            border: 1px solid var(--thrift-forest-subtle);
+            font-weight: 600;
+            font-size: 0.82rem;
+            padding: 0.3rem 0.7rem;
+            border-radius: 50rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            white-space: nowrap;
+        }
+
+        /* Buttons */
+        .btn-view-details {
+            color: #0d6efd;
+            background: rgba(13, 110, 253, 0.08);
+            border: 1px solid rgba(13, 110, 253, 0.2);
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .btn-view-details:hover {
+            background: #0d6efd;
+            color: #ffffff;
+        }
+
+        .btn-approve {
+            background: #2d6a4f;
+            color: #ffffff;
+            border: 1px solid #1b4332;
+            font-weight: 600;
+            font-size: 0.82rem;
+            transition: all 0.2s ease;
+        }
+        .btn-approve:hover {
+            background: #1b4332;
+            color: #ffffff;
+            box-shadow: 0 4px 10px rgba(27, 67, 50, 0.3);
+        }
+
+        .btn-reject {
+            color: #dc3545;
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            font-weight: 600;
+            font-size: 0.82rem;
+            transition: all 0.2s ease;
+        }
+        .btn-reject:hover {
+            background: #dc3545;
+            color: #ffffff;
+        }
+
+        /* Empty State */
+        .empty-state-box {
+            padding: 4rem 2rem;
+            text-align: center;
+        }
+
+        .empty-icon-circle {
+            width: 76px;
+            height: 76px;
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-medium);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--thrift-forest-subtle);
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Site Header / Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-dark text-white border rounded-pill px-3 py-2 d-none d-sm-inline-flex align-items-center gap-1">
+                    <i class="bi bi-shield-lock-fill text-warning"></i>
+                    <span>Admin Portal</span>
+                </span>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-admin-dashboard">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-logout-btn">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="py-4 py-md-5" id="main-content">
+        <div class="container">
+
+            <!-- Flashed Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                  <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+                    {% if alert_class == 'success' %}
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    {% elif alert_class == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                    {% elif alert_class == 'info' %}
+                      <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    {% endif %}
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <!-- Admin Hero Banner -->
+            <div class="dashboard-hero mb-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="role-badge mb-2">
+                            <i class="bi bi-shield-check"></i>
+                            <span>Admin Governance</span>
+                        </div>
+                        <h1 class="h2 fw-bold text-white mb-1">Store Moderation & Approval</h1>
+                        <p class="text-white-50 mb-0 small">
+                            Inspect store submissions, verify boutique legitimacy, grant directory approvals, or reject fraudulent listings.
+                        </p>
+                    </div>
+                    <div class="text-md-end">
+                        <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-patch-check-fill text-success me-1"></i> Directory Supervisor Active
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter Navigation Tabs (Requirement 3) -->
+            <div class="filter-nav">
+                <!-- All Stores -->
+                <a href="{{ url_for('admin_stores') }}"
+                   class="filter-tab {% if not status_filter %}active{% endif %}"
+                   id="filter-all-stores">
+                    <i class="bi bi-collection"></i>
+                    <span>All Stores</span>
+                    <span class="badge bg-secondary-subtle text-dark">{{ counts.all }}</span>
+                </a>
+
+                <!-- Pending Stores -->
+                <a href="{{ url_for('admin_stores', status='pending') }}"
+                   class="filter-tab {% if status_filter == 'pending' %}active{% endif %}"
+                   id="filter-pending-stores">
+                    <i class="bi bi-clock-history text-warning"></i>
+                    <span>Pending Stores</span>
+                    <span class="badge bg-warning-subtle text-dark">{{ counts.pending }}</span>
+                </a>
+
+                <!-- Approved Stores -->
+                <a href="{{ url_for('admin_stores', status='approved') }}"
+                   class="filter-tab {% if status_filter == 'approved' %}active{% endif %}"
+                   id="filter-approved-stores">
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                    <span>Approved Stores</span>
+                    <span class="badge bg-success-subtle text-success">{{ counts.approved }}</span>
+                </a>
+            </div>
+
+            <!-- Stores Table Card (Requirements 2, 4, 8) -->
+            <div class="manage-card">
+                <div class="card-header-custom">
+                    <div>
+                        <h2 class="h5 fw-bold text-dark mb-0 d-flex align-items-center gap-2">
+                            <i class="bi bi-buildings-fill text-success"></i>
+                            <span>
+                                {% if status_filter == 'pending' %}
+                                    Pending Store Submissions
+                                {% elif status_filter == 'approved' %}
+                                    Approved Boutique Directory
+                                {% else %}
+                                    All Registered Stores
+                                {% endif %}
+                            </span>
+                        </h2>
+                        <span class="text-muted small">Displaying results sorted newest first</span>
+                    </div>
+                    <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">
+                        Showing: <strong>{{ stores|length }}</strong> stores
+                    </span>
+                </div>
+
+                {% if stores and stores|length > 0 %}
+                <div class="table-responsive">
+                    <table class="table custom-table align-middle" id="admin-stores-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Store ID</th>
+                                <th scope="col">Store Name</th>
+                                <th scope="col">Owner Name & Email</th>
+                                <th scope="col">Category Name</th>
+                                <th scope="col">City</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Created Date</th>
+                                <th scope="col" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for store in stores %}
+                            <tr id="admin-store-row-{{ store.store_id }}">
+                                <!-- Store ID -->
+                                <td>
+                                    <span class="fw-bold text-muted">#{{ store.store_id }}</span>
+                                </td>
+
+                                <!-- Store Name -->
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="p-2 rounded-3 bg-light border text-success">
+                                            <i class="bi bi-shop fs-5"></i>
+                                        </div>
+                                        <div>
+                                            <div class="store-title-cell">{{ store.store_name }}</div>
+                                            <small class="text-muted d-block text-truncate" style="max-width: 200px;">
+                                                {{ store.address or 'No address' }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </td>
+
+                                <!-- Owner Name & Email -->
+                                <td class="owner-cell">
+                                    <div class="fw-semibold text-dark">{{ store.owner_name }}</div>
+                                    <small class="text-muted d-block">
+                                        <i class="bi bi-envelope me-1"></i>{{ store.owner_email }}
+                                    </small>
+                                </td>
+
+                                <!-- Category Name -->
+                                <td>
+                                    <span class="category-badge">
+                                        <i class="bi bi-tag-fill"></i>
+                                        <span>{{ store.category_name or 'Uncategorized' }}</span>
+                                    </span>
+                                </td>
+
+                                <!-- City -->
+                                <td>
+                                    <span class="d-inline-flex align-items-center gap-1 text-secondary">
+                                        <i class="bi bi-geo-alt-fill text-danger small"></i>
+                                        <span>{{ store.city }}</span>
+                                    </span>
+                                </td>
+
+                                <!-- Status -->
+                                <td>
+                                    {% if store.status == 'approved' %}
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1" id="status-badge-{{ store.store_id }}">
+                                            <i class="bi bi-check-circle-fill"></i>
+                                            <span>Approved</span>
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1" id="status-badge-{{ store.store_id }}">
+                                            <i class="bi bi-clock-history text-warning"></i>
+                                            <span>Pending</span>
+                                        </span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- Created Date -->
+                                <td>
+                                    <span class="text-muted small">
+                                        {% if store.created_at %}
+                                            {{ store.created_at.strftime('%Y-%m-%d') }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </span>
+                                </td>
+
+                                <!-- Actions (Requirement 8) -->
+                                <td class="text-end">
+                                    <div class="d-inline-flex align-items-center gap-1 flex-wrap justify-content-end">
+                                        <!-- View Details -->
+                                        <a href="{{ url_for('admin_store_details', store_id=store.store_id) }}"
+                                           class="btn btn-sm btn-view-details rounded-pill px-3 d-inline-flex align-items-center gap-1"
+                                           id="btn-details-{{ store.store_id }}"
+                                           title="View Complete Store Details">
+                                            <i class="bi bi-eye"></i>
+                                            <span>View Details</span>
+                                        </a>
+
+                                        <!-- Approve Button (Show ONLY if status == 'pending') -->
+                                        {% if store.status == 'pending' %}
+                                        <form action="{{ url_for('admin_approve_store', store_id=store.store_id) }}" method="POST" class="d-inline">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-approve rounded-pill px-3 d-inline-flex align-items-center gap-1"
+                                                    id="btn-approve-{{ store.store_id }}"
+                                                    title="Approve this store listing">
+                                                <i class="bi bi-check-lg"></i>
+                                                <span>Approve</span>
+                                            </button>
+                                        </form>
+
+                                        <!-- Reject Button (Show ONLY if status == 'pending') -->
+                                        <form action="{{ url_for('admin_reject_store', store_id=store.store_id) }}"
+                                              method="POST"
+                                              class="d-inline"
+                                              onsubmit="return confirm('Are you sure you want to reject and remove this store? This will permanently delete the store record.');">
+                                            <button type="submit"
+                                                    class="btn btn-sm btn-reject rounded-pill px-3 d-inline-flex align-items-center gap-1"
+                                                    id="btn-reject-{{ store.store_id }}"
+                                                    title="Reject and delete store">
+                                                <i class="bi bi-x-lg"></i>
+                                                <span>Reject</span>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <!-- Empty State -->
+                <div class="empty-state-box">
+                    <div class="empty-icon-circle">
+                        <i class="bi bi-inbox"></i>
+                    </div>
+                    <h3 class="h4 fw-bold text-dark mb-2">No Stores Found</h3>
+                    <p class="text-muted mb-4 mx-auto" style="max-width: 440px;">
+                        {% if status_filter == 'pending' %}
+                            There are currently no stores awaiting approval. All submissions have been processed!
+                        {% elif status_filter == 'approved' %}
+                            No approved stores exist in the directory yet.
+                        {% else %}
+                            No stores have been submitted to the platform yet.
+                        {% endif %}
+                    </p>
+                    {% if status_filter %}
+                    <a href="{{ url_for('admin_stores') }}" class="btn btn-outline-secondary px-4 py-2 rounded-pill">
+                        <i class="bi bi-arrow-left me-1"></i> View All Stores
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Site Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-1">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+            <p class="small text-muted mb-0">Logged in as <strong>{{ full_name }}</strong> ({{ role }})</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+</body>
+</html>

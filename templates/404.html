@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Store or Page Not Found | ThriftMap</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+            --thrift-amber-gold: #d4a373;
+            --thrift-terracotta: #c85a17;
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        .not-found-card {
+            background: #ffffff;
+            border: 1px solid var(--thrift-border);
+            border-radius: 20px;
+            padding: 3.5rem 2.5rem;
+            box-shadow: 0 16px 36px rgba(15, 41, 30, 0.06);
+            text-align: center;
+            max-width: 620px;
+            margin: 0 auto;
+        }
+
+        .error-code {
+            font-size: 5.5rem;
+            font-weight: 800;
+            line-height: 1;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .btn-thrift-primary {
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-medium));
+            color: #ffffff;
+            border: none;
+            font-weight: 600;
+            padding: 0.75rem 1.6rem;
+            border-radius: 50rem;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 14px rgba(27, 67, 50, 0.25);
+        }
+
+        .btn-thrift-primary:hover {
+            color: #ffffff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(27, 67, 50, 0.35);
+        }
+
+        .btn-thrift-outline {
+            background: transparent;
+            color: var(--thrift-forest-primary);
+            border: 1.5px solid var(--thrift-forest-primary);
+            font-weight: 600;
+            padding: 0.72rem 1.5rem;
+            border-radius: 50rem;
+            transition: all 0.25s ease;
+        }
+
+        .btn-thrift-outline:hover {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-primary);
+            border-color: var(--thrift-forest-medium);
+        }
+
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <a href="{{ url_for('stores') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-shop"></i>
+                    <span>Stores Directory</span>
+                </a>
+                <a href="{{ url_for('home') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-house-door"></i>
+                    <span>Home</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="py-5 my-auto" id="main-content">
+        <div class="container">
+            <div class="not-found-card">
+                <div class="error-code">404</div>
+                <h1 class="h3 fw-bold mb-2">Store or Page Not Found</h1>
+                <p class="text-muted mb-4">
+                    The requested thrift store either does not exist, has been removed, or is currently pending administrator verification and is not accessible to the public.
+                </p>
+
+                <div class="d-flex flex-column flex-sm-row align-items-center justify-content-center gap-3">
+                    <a href="{{ url_for('stores') }}" class="btn btn-thrift-primary d-inline-flex align-items-center gap-2" id="btn-404-browse">
+                        <i class="bi bi-shop"></i>
+                        <span>Browse Approved Stores</span>
+                    </a>
+                    <a href="{{ url_for('home') }}" class="btn btn-thrift-outline d-inline-flex align-items-center gap-2" id="btn-404-home">
+                        <i class="bi bi-house"></i>
+                        <span>Return to Home</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-0">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
