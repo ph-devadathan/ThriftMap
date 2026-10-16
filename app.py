@@ -214,6 +214,141 @@ def stores():
         total_stores=len(stores_list)
     )
 
+def is_valid_coordinate(lat, lng):
+    """
+    Validate latitude and longitude values server-side.
+    Latitude must be between -90 and 90.
+    Longitude must be between -180 and 180.
+    Returns True if both are valid numbers within range, False otherwise.
+    """
+    if lat is None or lng is None:
+        return False
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+        import math
+        if math.isnan(lat_f) or math.isinf(lat_f) or math.isnan(lng_f) or math.isinf(lng_f):
+            return False
+        return (-90.0 <= lat_f <= 90.0) and (-180.0 <= lng_f <= 180.0)
+    except (ValueError, TypeError):
+        return False
+
+@app.route('/map')
+def store_map():
+    """
+    Public interactive map route displaying approved stores with Leaflet.js 1.9.4 and OpenStreetMap.
+    Supports filtering by search query (name/city), specific city, and category.
+    Strictly queries status = 'approved', selects only public discovery fields,
+    validates coordinates server-side, and separates mapped from unmapped stores.
+    Accessible to both guests and authenticated users.
+    """
+    search_query = request.args.get('search', '').strip()
+    city_filter = request.args.get('city', '').strip()
+    category_filter = request.args.get('category', '').strip()
+
+    conn = None
+    cursor = None
+    categories = []
+    mapped_stores = []
+    unmapped_stores = []
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Fetch all categories for filter options
+        cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
+        categories = cursor.fetchall()
+
+        # Parameterized query - strictly ONLY approved stores
+        # Selects only public discovery fields: store ID, name, category, city, address, latitude, longitude, image
+        base_query = """
+            SELECT 
+                s.store_id,
+                s.store_name,
+                s.category_id,
+                s.address,
+                s.city,
+                s.latitude,
+                s.longitude,
+                s.image,
+                c.category_name
+            FROM stores s
+            JOIN categories c ON s.category_id = c.category_id
+            WHERE s.status = 'approved'
+        """
+        params = []
+
+        # Search by Store Name and/or City
+        if search_query:
+            base_query += " AND (s.store_name LIKE %s OR s.city LIKE %s)"
+            params.extend([f"%{search_query}%", f"%{search_query}%"])
+
+        # Specific city filter if passed
+        if city_filter:
+            base_query += " AND s.city LIKE %s"
+            params.append(f"%{city_filter}%")
+
+        # Filter by Category
+        if category_filter:
+            if category_filter.isdigit():
+                base_query += " AND s.category_id = %s"
+                params.append(int(category_filter))
+            else:
+                base_query += " AND c.category_name = %s"
+                params.append(category_filter)
+
+        base_query += " ORDER BY s.store_name ASC"
+        cursor.execute(base_query, tuple(params))
+        all_stores = cursor.fetchall()
+
+        for s in all_stores:
+            lat = s.get('latitude')
+            lng = s.get('longitude')
+
+            store_item = {
+                'store_id': s['store_id'],
+                'store_name': s['store_name'],
+                'category_name': s['category_name'],
+                'category_id': s['category_id'],
+                'city': s['city'],
+                'address': s['address'],
+                'image': s.get('image'),
+                'image_url': store_image_url(s.get('image')),
+                'details_url': url_for('store_details', store_id=s['store_id'])
+            }
+
+            if is_valid_coordinate(lat, lng):
+                store_item['latitude'] = float(lat)
+                store_item['longitude'] = float(lng)
+                mapped_stores.append(store_item)
+            else:
+                store_item['latitude'] = None
+                store_item['longitude'] = None
+                unmapped_stores.append(store_item)
+
+    except Exception as e:
+        print(f"Error loading map stores: {e}")
+        flash("An error occurred while loading store locations.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template(
+        'map.html',
+        mapped_stores=mapped_stores,
+        unmapped_stores=unmapped_stores,
+        categories=categories,
+        search_query=search_query,
+        city_filter=city_filter,
+        category_filter=category_filter,
+        total_mapped=len(mapped_stores),
+        total_unmapped=len(unmapped_stores),
+        total_stores=len(mapped_stores) + len(unmapped_stores)
+    )
+
 @app.route('/store/<int:store_id>')
 def store_details(store_id):
     """Public route gated behind login to view complete store details."""

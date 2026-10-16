@@ -37,6 +37,7 @@
                 <ul class="nav-list">
                     <li class="nav-item"><a href="{{ url_for('home') }}" class="nav-link active" id="nav-home">Home</a></li>
                     <li class="nav-item"><a href="{{ url_for('stores') }}" class="nav-link" id="nav-stores">Stores</a></li>
+                    <li class="nav-item"><a href="{{ url_for('store_map') }}" class="nav-link" id="nav-map">Map</a></li>
                     {% if session.get('user_id') %}
                         {% if session.get('role') == 'owner' %}
                             <li class="nav-item"><a href="{{ url_for('owner_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
