@@ -564,17 +564,14 @@
                             <i class="bi bi-geo-alt-fill"></i>
                             <span>Interactive Store Discovery</span>
                         </div>
-                        <h1 class="h2 fw-bold text-white mb-2" id="map-heading">Explore Thrift Stores on Map</h1>
+                        <h1 class="h2 fw-bold text-white mb-2" id="map-heading">Explore Thrift Stores in India</h1>
                         <p class="text-white-50 mb-0" style="max-width: 620px;">
-                            Discover sustainable vintage fashion, curated consignment spots, and local secondhand shops plotted geographically. Use filters or browser geolocation to find stores near you.
+                            Discover sustainable vintage fashion, curated consignment spots, and local secondhand shops plotted geographically across India. Use filters or browser geolocation to find stores near you.
                         </p>
                     </div>
                     <div class="text-md-end d-flex flex-wrap gap-2">
                         <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm" id="badge-mapped-stores">
-                            <i class="bi bi-pin-map-fill text-success me-1"></i> {{ total_mapped }} Mapped
-                        </span>
-                        <span class="badge bg-white-50 text-white border border-white-50 px-3 py-2 rounded-pill shadow-sm" id="badge-unmapped-stores">
-                            <i class="bi bi-clock-history me-1"></i> {{ total_unmapped }} Awaiting Coordinates
+                            <i class="bi bi-pin-map-fill text-success me-1"></i> {{ total_mapped }} Approved Stores in India
                         </span>
                     </div>
                 </div>
@@ -606,7 +603,7 @@
                                    class="form-control rounded-3"
                                    id="city-input"
                                    name="city"
-                                   placeholder="e.g. Brooklyn, Thiruvalla..."
+                                   placeholder="e.g. Mumbai, Bengaluru, Kochi..."
                                    value="{{ city_filter }}">
                         </div>
 
@@ -740,23 +737,18 @@
                                 <div class="empty-icon-box">
                                     <i class="bi bi-geo-alt-slash"></i>
                                 </div>
-                                <h3 class="h6 fw-bold text-dark mb-2">No stores have map coordinates yet.</h3>
+                                <h3 class="h6 fw-bold text-dark mb-2">No stores in India have map coordinates yet.</h3>
                                 <p class="text-muted small mb-3">
-                                    None of the currently approved stores matching your filter have latitude and longitude coordinates entered in the directory.
+                                    None of the currently approved stores in India matching your search have map coordinates entered in the directory.
                                 </p>
                                 <div class="p-2 rounded-3 bg-light border text-start small mb-3">
                                     <div class="fw-bold text-dark mb-1">
                                         <i class="bi bi-info-circle text-primary me-1"></i> Store Owner Info:
                                     </div>
                                     <span class="text-muted">
-                                        Store owners can enter decimal coordinates anytime through the <strong>Edit Store</strong> form in their Owner Dashboard.
+                                        Store owners can pin their store location on the interactive map anytime through the <strong>Add Store</strong> or <strong>Edit Store</strong> form in their Owner Dashboard.
                                     </span>
                                 </div>
-                                {% if unmapped_stores %}
-                                    <a href="#unmapped-stores-section" class="btn btn-outline-success btn-sm rounded-pill w-100">
-                                        <i class="bi bi-arrow-down me-1"></i> View All {{ unmapped_stores|length }} Stores Below
-                                    </a>
-                                {% endif %}
                             </div>
                         {% endif %}
                     </div>
@@ -773,75 +765,7 @@
                 </div>
             </div>
 
-            <!-- Notice card for Missing Coordinates -->
-            {% if unmapped_stores %}
-            <div class="info-card-notice" id="coordinates-notice-card">
-                <div class="d-flex align-items-start gap-3">
-                    <div class="fs-4 text-warning">
-                        <i class="bi bi-exclamation-circle-fill"></i>
-                    </div>
-                    <div>
-                        <h2 class="h6 fw-bold text-dark mb-1">Approved Stores Without Map Coordinates ({{ unmapped_stores|length }})</h2>
-                        <p class="text-muted small mb-2">
-                            The stores listed below are fully approved and verified on ThriftMap, but their owners have not yet specified geographic coordinates (latitude &amp; longitude). They cannot be plotted on the interactive map until coordinates are provided.
-                        </p>
-                        <div class="small text-secondary">
-                            <i class="bi bi-pencil-square me-1"></i>
-                            <strong>For Store Owners:</strong> You can add your store's latitude and longitude at any time by visiting <strong>Owner Dashboard &gt; Manage Stores &gt; Edit Store</strong>.
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Unmapped Stores Section -->
-            <section id="unmapped-stores-section" class="mb-5" aria-labelledby="unmapped-heading">
-                <div class="d-flex align-items-center justify-content-between mb-3">
-                    <div>
-                        <h2 class="h5 fw-bold text-dark mb-0" id="unmapped-heading">
-                            Stores Awaiting Coordinates
-                        </h2>
-                        <span class="text-muted small">Approved shops with addresses ready for discovery</span>
-                    </div>
-                    <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-3 py-2">
-                        {{ unmapped_stores|length }} shop{{ 's' if unmapped_stores|length != 1 else '' }}
-                    </span>
-                </div>
-
-                <div class="row g-4" id="unmapped-stores-grid">
-                    {% for store in unmapped_stores %}
-                        <div class="col-md-6 col-lg-4">
-                            <article class="store-card" id="unmapped-store-card-{{ store.store_id }}">
-                                <div style="height: 180px; width: 100%; position: relative; overflow: hidden; background: #e9ecef;">
-                                    <img src="{{ store.image_url }}" alt="{{ store.store_name }}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/store-placeholder.svg') }}';">
-                                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 100%);"></div>
-                                </div>
-
-                                <div class="p-3 d-flex flex-column flex-grow-1">
-                                    <div class="d-flex align-items-center justify-content-between mb-2">
-                                        <span class="category-pill">{{ store.category_name }}</span>
-                                        <span class="badge bg-secondary-subtle text-muted border small">No Coordinates</span>
-                                    </div>
-
-                                    <h3 class="h5 fw-bold text-dark mb-2">{{ store.store_name }}</h3>
-
-                                    <div class="text-muted small mb-2">
-                                        <i class="bi bi-geo-alt-fill text-success me-1"></i>
-                                        <span>{{ store.address }}{% if store.city %}, {{ store.city }}{% endif %}</span>
-                                    </div>
-
-                                    <div class="mt-auto pt-3 border-top border-light-subtle">
-                                        <a href="{{ store.details_url }}" class="btn btn-thrift-primary w-100 d-inline-flex align-items-center justify-content-center gap-1" id="btn-details-{{ store.store_id }}">
-                                            <span>View Store Details</span>
-                                            <i class="bi bi-arrow-right"></i>
-                                        </a>
-                                    </div>
-                                </div>
-                            </article>
-                        </div>
-                    {% endfor %}
-                </div>
-            </section>
-            {% endif %}
 
         </div>
     </main>
@@ -880,9 +804,9 @@
         const mappedStores = mappedStoresDataEl ? JSON.parse(mappedStoresDataEl.textContent || '[]') : [];
         const placeholderUrl = placeholderUrlEl ? JSON.parse(placeholderUrlEl.textContent || '""') : '';
 
-        // Sensible default map view when zero markers exist
-        const defaultCenter = [20.0, 0.0];
-        const defaultZoom = 2;
+        // Sensible default map view centered on India
+        const defaultCenter = [20.5937, 78.9629];
+        const defaultZoom = 5;
 
         // Initialize Leaflet map
         const map = L.map('store-map-canvas', {

@@ -74,6 +74,42 @@ def request_entity_too_large(error):
     flash("Uploaded file is too large. Maximum file size allowed is 5 MB.", "danger")
     return redirect(request.url or url_for('owner_dashboard'))
 
+def is_valid_coordinate(lat, lng):
+    """
+    Validate latitude and longitude values server-side.
+    Latitude must be between -90 and 90.
+    Longitude must be between -180 and 180.
+    Returns True if both are valid numbers within range, False otherwise.
+    """
+    if lat is None or lng is None:
+        return False
+    try:
+        lat_f = float(lat)
+        lng_f = float(lng)
+        import math
+        if math.isnan(lat_f) or math.isinf(lat_f) or math.isnan(lng_f) or math.isinf(lng_f):
+            return False
+        return (-90.0 <= lat_f <= 90.0) and (-180.0 <= lng_f <= 180.0)
+    except (ValueError, TypeError):
+        return False
+
+# India geographic boundaries (mainland, Andaman & Nicobar, Lakshadweep)
+INDIA_LAT_MIN = 6.0
+INDIA_LAT_MAX = 38.0
+INDIA_LNG_MIN = 68.0
+INDIA_LNG_MAX = 98.0
+
+def is_in_india(lat, lng):
+    """
+    Check if the given coordinates fall within the geographic boundaries of India,
+    accounting for India's mainland and island territories.
+    """
+    if not is_valid_coordinate(lat, lng):
+        return False
+    lat_f = float(lat)
+    lng_f = float(lng)
+    return (INDIA_LAT_MIN <= lat_f <= INDIA_LAT_MAX) and (INDIA_LNG_MIN <= lng_f <= INDIA_LNG_MAX)
+
 def get_db_connection():
     """Create and return a new MySQL database connection."""
     return mysql.connector.connect(
@@ -105,7 +141,7 @@ def home():
         cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
         categories = cursor.fetchall()
 
-        # Fetch featured approved stores (strictly status = 'approved')
+        # Fetch featured approved stores in India with valid coordinates
         query = """
             SELECT 
                 s.store_id,
@@ -113,17 +149,24 @@ def home():
                 s.category_id,
                 s.description,
                 s.city,
+                s.latitude,
+                s.longitude,
                 s.image,
                 s.status,
                 c.category_name
             FROM stores s
             JOIN categories c ON s.category_id = c.category_id
             WHERE s.status = 'approved'
+              AND s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND s.latitude BETWEEN %s AND %s
+              AND s.longitude BETWEEN %s AND %s
             ORDER BY s.created_at DESC
             LIMIT 6
         """
-        cursor.execute(query)
-        featured_stores = cursor.fetchall()
+        cursor.execute(query, (INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX))
+        raw_featured = cursor.fetchall()
+        featured_stores = [s for s in raw_featured if is_in_india(s.get('latitude'), s.get('longitude'))]
     except Exception as e:
         print(f"Error fetching home page data: {e}")
     finally:
@@ -154,7 +197,7 @@ def stores():
         cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
         categories = cursor.fetchall()
 
-        # Parameterized query - strictly ONLY approved stores
+        # Parameterized query - strictly ONLY approved stores located within India
         base_query = """
             SELECT 
                 s.store_id,
@@ -162,6 +205,8 @@ def stores():
                 s.category_id,
                 s.description,
                 s.city,
+                s.latitude,
+                s.longitude,
                 s.image,
                 s.status,
                 s.created_at,
@@ -169,8 +214,12 @@ def stores():
             FROM stores s
             JOIN categories c ON s.category_id = c.category_id
             WHERE s.status = 'approved'
+              AND s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND s.latitude BETWEEN %s AND %s
+              AND s.longitude BETWEEN %s AND %s
         """
-        params = []
+        params = [INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX]
 
         # Search by Store Name and/or City
         if search_query:
@@ -193,7 +242,8 @@ def stores():
 
         base_query += " ORDER BY s.created_at DESC"
         cursor.execute(base_query, tuple(params))
-        stores_list = cursor.fetchall()
+        raw_stores = cursor.fetchall()
+        stores_list = [s for s in raw_stores if is_in_india(s.get('latitude'), s.get('longitude'))]
 
     except Exception as e:
         print(f"Error fetching stores: {e}")
@@ -214,32 +264,13 @@ def stores():
         total_stores=len(stores_list)
     )
 
-def is_valid_coordinate(lat, lng):
-    """
-    Validate latitude and longitude values server-side.
-    Latitude must be between -90 and 90.
-    Longitude must be between -180 and 180.
-    Returns True if both are valid numbers within range, False otherwise.
-    """
-    if lat is None or lng is None:
-        return False
-    try:
-        lat_f = float(lat)
-        lng_f = float(lng)
-        import math
-        if math.isnan(lat_f) or math.isinf(lat_f) or math.isnan(lng_f) or math.isinf(lng_f):
-            return False
-        return (-90.0 <= lat_f <= 90.0) and (-180.0 <= lng_f <= 180.0)
-    except (ValueError, TypeError):
-        return False
-
 @app.route('/map')
 def store_map():
     """
-    Public interactive map route displaying approved stores with Leaflet.js 1.9.4 and OpenStreetMap.
+    Public interactive map route displaying approved stores in India with Leaflet.js 1.9.4 and OpenStreetMap.
     Supports filtering by search query (name/city), specific city, and category.
-    Strictly queries status = 'approved', selects only public discovery fields,
-    validates coordinates server-side, and separates mapped from unmapped stores.
+    Strictly queries status = 'approved' stores with valid coordinates located within India.
+    Stores without coordinates or outside India are excluded from public India discovery.
     Accessible to both guests and authenticated users.
     """
     search_query = request.args.get('search', '').strip()
@@ -250,7 +281,6 @@ def store_map():
     cursor = None
     categories = []
     mapped_stores = []
-    unmapped_stores = []
 
     try:
         conn = get_db_connection()
@@ -260,8 +290,7 @@ def store_map():
         cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
         categories = cursor.fetchall()
 
-        # Parameterized query - strictly ONLY approved stores
-        # Selects only public discovery fields: store ID, name, category, city, address, latitude, longitude, image
+        # Parameterized query - strictly ONLY approved stores within India's boundary
         base_query = """
             SELECT 
                 s.store_id,
@@ -276,8 +305,12 @@ def store_map():
             FROM stores s
             JOIN categories c ON s.category_id = c.category_id
             WHERE s.status = 'approved'
+              AND s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND s.latitude BETWEEN %s AND %s
+              AND s.longitude BETWEEN %s AND %s
         """
-        params = []
+        params = [INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX]
 
         # Search by Store Name and/or City
         if search_query:
@@ -306,26 +339,21 @@ def store_map():
             lat = s.get('latitude')
             lng = s.get('longitude')
 
-            store_item = {
-                'store_id': s['store_id'],
-                'store_name': s['store_name'],
-                'category_name': s['category_name'],
-                'category_id': s['category_id'],
-                'city': s['city'],
-                'address': s['address'],
-                'image': s.get('image'),
-                'image_url': store_image_url(s.get('image')),
-                'details_url': url_for('store_details', store_id=s['store_id'])
-            }
-
-            if is_valid_coordinate(lat, lng):
-                store_item['latitude'] = float(lat)
-                store_item['longitude'] = float(lng)
+            if is_in_india(lat, lng):
+                store_item = {
+                    'store_id': s['store_id'],
+                    'store_name': s['store_name'],
+                    'category_name': s['category_name'],
+                    'category_id': s['category_id'],
+                    'city': s['city'],
+                    'address': s['address'],
+                    'image': s.get('image'),
+                    'image_url': store_image_url(s.get('image')),
+                    'details_url': url_for('store_details', store_id=s['store_id']),
+                    'latitude': float(lat),
+                    'longitude': float(lng)
+                }
                 mapped_stores.append(store_item)
-            else:
-                store_item['latitude'] = None
-                store_item['longitude'] = None
-                unmapped_stores.append(store_item)
 
     except Exception as e:
         print(f"Error loading map stores: {e}")
@@ -339,14 +367,12 @@ def store_map():
     return render_template(
         'map.html',
         mapped_stores=mapped_stores,
-        unmapped_stores=unmapped_stores,
         categories=categories,
         search_query=search_query,
         city_filter=city_filter,
         category_filter=category_filter,
         total_mapped=len(mapped_stores),
-        total_unmapped=len(unmapped_stores),
-        total_stores=len(mapped_stores) + len(unmapped_stores)
+        total_stores=len(mapped_stores)
     )
 
 @app.route('/store/<int:store_id>')
@@ -584,16 +610,23 @@ def user_dashboard():
                 s.category_id,
                 s.description,
                 s.city,
+                s.latitude,
+                s.longitude,
                 s.image,
                 s.status,
                 c.category_name
             FROM stores s
             JOIN categories c ON s.category_id = c.category_id
             WHERE s.status = 'approved'
+              AND s.latitude IS NOT NULL
+              AND s.longitude IS NOT NULL
+              AND s.latitude BETWEEN %s AND %s
+              AND s.longitude BETWEEN %s AND %s
             ORDER BY s.created_at DESC
             LIMIT 6
-        """)
-        featured_stores = cursor.fetchall()
+        """, (INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX))
+        raw_featured = cursor.fetchall()
+        featured_stores = [s for s in raw_featured if is_in_india(s.get('latitude'), s.get('longitude'))]
     except Exception as e:
         print(f"Error fetching user dashboard stores: {e}")
     finally:
@@ -724,6 +757,14 @@ def add_store():
                 longitude = float(longitude_raw)
             except ValueError:
                 errors.append("Longitude must be a valid decimal number.")
+
+        if latitude is not None and longitude is not None:
+            if not is_valid_coordinate(latitude, longitude):
+                errors.append("Latitude and Longitude must be valid decimal coordinates.")
+            elif not is_in_india(latitude, longitude):
+                errors.append("Selected store location must be within India (Latitude: 6.0° to 38.0° N, Longitude: 68.0° to 98.0° E).")
+        elif (latitude is not None and longitude is None) or (latitude is None and longitude is not None):
+            errors.append("Both Latitude and Longitude are required to set a map location.")
 
         # Process image upload if provided
         image = None
@@ -1025,6 +1066,14 @@ def edit_store(store_id):
                 longitude = float(longitude_raw)
             except ValueError:
                 errors.append("Longitude must be a valid decimal number.")
+
+        if latitude is not None and longitude is not None:
+            if not is_valid_coordinate(latitude, longitude):
+                errors.append("Latitude and Longitude must be valid decimal coordinates.")
+            elif not is_in_india(latitude, longitude):
+                errors.append("Selected store location must be within India (Latitude: 6.0° to 38.0° N, Longitude: 68.0° to 98.0° E).")
+        elif (latitude is not None and longitude is None) or (latitude is None and longitude is not None):
+            errors.append("Both Latitude and Longitude are required to set a map location.")
 
         # Process image replacement if new file uploaded; preserve existing if none selected
         image = store.get('image')

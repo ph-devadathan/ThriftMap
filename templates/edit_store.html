@@ -16,6 +16,9 @@
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+    <!-- Leaflet 1.9.4 CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
     <!-- Harmonized ThriftMap Design Styles -->
     <style>
         :root {
@@ -496,7 +499,7 @@
                                                    class="form-control"
                                                    name="city"
                                                    id="city"
-                                                   placeholder="e.g. Brooklyn"
+                                                   placeholder="e.g. Mumbai"
                                                    maxlength="100"
                                                    required
                                                    value="{{ store.city or '' }}">
@@ -549,17 +552,39 @@
                                     </div>
                                 </div>
 
-                                <!-- Section 3: Map Coordinates -->
+                                <!-- Section 3: Map Location Picker (India Only) -->
                                 <div class="form-section-title">
                                     <i class="bi bi-pin-map-fill text-success"></i>
-                                    <span>Map Geolocation Coordinates <span class="text-muted small fw-normal">(Optional)</span></span>
+                                    <span>Store Map Location <span class="text-muted small fw-normal">(Optional — India only)</span></span>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                        <label class="form-label mb-0 fw-semibold text-dark">
+                                            <i class="bi bi-geo-alt-fill text-success me-1"></i> Interactive Location Picker
+                                        </label>
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">
+                                            <i class="bi bi-crosshair"></i> Pin on Map
+                                        </span>
+                                    </div>
+                                    <p class="text-muted small mb-2">
+                                        <i class="bi bi-info-circle text-primary me-1"></i>
+                                        <strong>Click the map to pin your store location, then drag the marker to adjust it.</strong>
+                                        The coordinates will automatically populate below. Store locations must be within India.
+                                    </p>
+                                    
+                                    <!-- Interactive Map Canvas -->
+                                    <div id="store-location-picker-map" style="height: 320px; width: 100%; border-radius: 12px; border: 1.5px solid var(--thrift-border); z-index: 1;" role="region" aria-label="Interactive map to select store location in India"></div>
+                                    
+                                    <!-- Validation / Status message container -->
+                                    <div id="map-location-feedback" class="mt-2 small d-none"></div>
                                 </div>
 
                                 <div class="row g-3 mb-4">
                                     <!-- Latitude -->
-                                    <div class="col-md-6">
+                                    <div class="col-md-5">
                                         <label for="latitude" class="form-label">
-                                            Latitude <span class="text-muted small fw-normal">(Decimal, e.g. 40.712776)</span>
+                                            Latitude <span class="text-muted small fw-normal">(Decimal, e.g. 9.383500)</span>
                                         </label>
                                         <div class="input-group">
                                             <span class="input-group-text">
@@ -570,15 +595,15 @@
                                                    class="form-control"
                                                    name="latitude"
                                                    id="latitude"
-                                                   placeholder="e.g. 40.712776"
+                                                   placeholder="e.g. 9.383500"
                                                    value="{{ store.latitude or '' }}">
                                         </div>
                                     </div>
 
                                     <!-- Longitude -->
-                                    <div class="col-md-6">
+                                    <div class="col-md-5">
                                         <label for="longitude" class="form-label">
-                                            Longitude <span class="text-muted small fw-normal">(Decimal, e.g. -74.005974)</span>
+                                            Longitude <span class="text-muted small fw-normal">(Decimal, e.g. 76.574100)</span>
                                         </label>
                                         <div class="input-group">
                                             <span class="input-group-text">
@@ -589,9 +614,23 @@
                                                    class="form-control"
                                                    name="longitude"
                                                    id="longitude"
-                                                   placeholder="e.g. -74.005974"
+                                                   placeholder="e.g. 76.574100"
                                                    value="{{ store.longitude or '' }}">
                                         </div>
+                                    </div>
+
+                                    <!-- Clear Pin Button -->
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-secondary w-100" id="btn-clear-pin" title="Clear pinned coordinates">
+                                            <i class="bi bi-x-circle me-1"></i> Clear
+                                        </button>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <span class="text-muted small">
+                                            <i class="bi bi-shield-exclamation text-secondary me-1"></i>
+                                            Stores submitted without coordinates remain saved in your dashboard, but will not appear in the public India map and directory until verified coordinates are added.
+                                        </span>
                                     </div>
 
                                     <!-- Store Image & Replacement (Section 3) -->
@@ -769,6 +808,145 @@
                 }, false);
             }
         });
+    </script>
+
+    <!-- Leaflet 1.9.4 JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <!-- Map Location Picker Logic -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // India geographic boundary
+        const INDIA_LAT_MIN = 6.0;
+        const INDIA_LAT_MAX = 38.0;
+        const INDIA_LNG_MIN = 68.0;
+        const INDIA_LNG_MAX = 98.0;
+
+        function isCoordInIndia(lat, lng) {
+            return typeof lat === 'number' && typeof lng === 'number' &&
+                   lat >= INDIA_LAT_MIN && lat <= INDIA_LAT_MAX &&
+                   lng >= INDIA_LNG_MIN && lng <= INDIA_LNG_MAX;
+        }
+
+        const latInput = document.getElementById('latitude');
+        const lngInput = document.getElementById('longitude');
+        const feedbackDiv = document.getElementById('map-location-feedback');
+        const clearPinBtn = document.getElementById('btn-clear-pin');
+        const mapContainer = document.getElementById('store-location-picker-map');
+
+        if (!mapContainer || !latInput || !lngInput) return;
+
+        // Sensible default center: India
+        const defaultCenter = [20.5937, 78.9629];
+        const defaultZoom = 5;
+
+        const pickerMap = L.map('store-location-picker-map', {
+            zoomControl: true,
+            scrollWheelZoom: true
+        }).setView(defaultCenter, defaultZoom);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+        }).addTo(pickerMap);
+
+        setTimeout(function () {
+            pickerMap.invalidateSize();
+        }, 250);
+
+        window.addEventListener('resize', function () {
+            pickerMap.invalidateSize();
+        });
+
+        let pickerMarker = null;
+
+        function updateFeedback(lat, lng) {
+            if (!feedbackDiv) return;
+            if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
+                feedbackDiv.className = 'mt-2 small d-none';
+                feedbackDiv.textContent = '';
+                return;
+            }
+            if (isCoordInIndia(lat, lng)) {
+                feedbackDiv.className = 'mt-2 small text-success fw-semibold';
+                feedbackDiv.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Location pinned within India (Lat: ' + lat.toFixed(6) + ', Lng: ' + lng.toFixed(6) + ')';
+            } else {
+                feedbackDiv.className = 'mt-2 small text-danger fw-semibold';
+                feedbackDiv.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Selected location is outside India (Lat: ' + lat.toFixed(6) + ', Lng: ' + lng.toFixed(6) + '). Locations must be within India.';
+            }
+        }
+
+        function setMarkerLocation(lat, lng, panTo) {
+            if (isNaN(lat) || isNaN(lng)) return;
+            lat = parseFloat(Number(lat).toFixed(6));
+            lng = parseFloat(Number(lng).toFixed(6));
+
+            if (!pickerMarker) {
+                pickerMarker = L.marker([lat, lng], { draggable: true }).addTo(pickerMap);
+                pickerMarker.on('dragend', function (e) {
+                    const pos = e.target.getLatLng();
+                    const nLat = parseFloat(Number(pos.lat).toFixed(6));
+                    const nLng = parseFloat(Number(pos.lng).toFixed(6));
+                    latInput.value = nLat;
+                    lngInput.value = nLng;
+                    updateFeedback(nLat, nLng);
+                });
+            } else {
+                pickerMarker.setLatLng([lat, lng]);
+            }
+
+            latInput.value = lat;
+            lngInput.value = lng;
+            updateFeedback(lat, lng);
+
+            if (panTo) {
+                pickerMap.setView([lat, lng], 13);
+            }
+        }
+
+        // Click map to place/move marker
+        pickerMap.on('click', function (e) {
+            setMarkerLocation(e.latlng.lat, e.latlng.lng, false);
+        });
+
+        // Manual input synchronization
+        function handleManualInput() {
+            const latVal = parseFloat(latInput.value);
+            const lngVal = parseFloat(lngInput.value);
+            if (!isNaN(latVal) && !isNaN(lngVal) && latVal >= -90 && latVal <= 90 && lngVal >= -180 && lngVal <= 180) {
+                setMarkerLocation(latVal, lngVal, true);
+            } else if (!latInput.value && !lngInput.value) {
+                if (pickerMarker) {
+                    pickerMap.removeLayer(pickerMarker);
+                    pickerMarker = null;
+                }
+                updateFeedback(null, null);
+            }
+        }
+
+        latInput.addEventListener('input', handleManualInput);
+        lngInput.addEventListener('input', handleManualInput);
+
+        if (clearPinBtn) {
+            clearPinBtn.addEventListener('click', function () {
+                latInput.value = '';
+                lngInput.value = '';
+                if (pickerMarker) {
+                    pickerMap.removeLayer(pickerMarker);
+                    pickerMarker = null;
+                }
+                updateFeedback(null, null);
+                pickerMap.setView(defaultCenter, defaultZoom);
+            });
+        }
+
+        // Initialize with pre-filled coordinates if present (e.g. existing store coordinates)
+        const initLat = parseFloat(latInput.value);
+        const initLng = parseFloat(lngInput.value);
+        if (!isNaN(initLat) && !isNaN(initLng)) {
+            setMarkerLocation(initLat, initLng, true);
+        }
+    });
     </script>
 </body>
 </html>

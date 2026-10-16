@@ -407,14 +407,14 @@
                             <i class="bi bi-patch-check-fill"></i>
                             <span>Verified Thrift Directory</span>
                         </div>
-                        <h1 class="h2 fw-bold text-white mb-2" id="directory-heading">Discover Thrift Stores Near You</h1>
+                        <h1 class="h2 fw-bold text-white mb-2" id="directory-heading">Discover Thrift Stores in India</h1>
                         <p class="text-white-50 mb-0" style="max-width: 600px;">
-                            Browse verified vintage boutiques, sustainable consignment stores, and neighborhood secondhand gems. Filter by category, search by city, or discover new shops.
+                            Browse verified vintage boutiques, sustainable consignment stores, and circular fashion spots located across India. Filter by category, search by city, or discover new shops.
                         </p>
                     </div>
                     <div class="text-md-end d-flex flex-wrap gap-2 justify-content-md-end align-items-center">
                         <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm" id="badge-total-stores">
-                            <i class="bi bi-shop text-success me-1"></i> {{ total_stores }} Approved Stores
+                            <i class="bi bi-shop text-success me-1"></i> {{ total_stores }} Stores in India
                         </span>
                         <a href="{{ url_for('store_map', search=search_query, city=city_filter, category=category_filter) }}" class="btn btn-outline-light btn-sm rounded-pill px-3 py-2 d-inline-flex align-items-center gap-1 shadow-sm" id="btn-hero-map-view">
                             <i class="bi bi-pin-map-fill text-warning"></i>
@@ -509,13 +509,13 @@
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h2 class="h5 fw-bold text-dark mb-0">
                     {% if category_filter or search_query or city_filter %}
-                        Matching Thrift Stores
+                        Matching Thrift Stores in India
                     {% else %}
-                        All Approved Thrift Stores
+                        All Approved Thrift Stores in India
                     {% endif %}
                 </h2>
                 <div class="d-flex align-items-center gap-2">
-                    <span class="text-muted small d-none d-sm-inline">Showing {{ stores|length }} approved shop{{ 's' if stores|length != 1 else '' }}</span>
+                    <span class="text-muted small d-none d-sm-inline">Showing {{ stores|length }} approved shop{{ 's' if stores|length != 1 else '' }} in India</span>
                     <a href="{{ url_for('store_map', search=search_query, city=city_filter, category=category_filter) }}" class="btn btn-outline-success btn-sm rounded-pill d-inline-flex align-items-center gap-1" id="btn-stores-map-toggle">
                         <i class="bi bi-pin-map-fill"></i>
                         <span>Map View</span>
@@ -571,9 +571,9 @@
                     <div class="mb-3 text-muted">
                         <i class="bi bi-search" style="font-size: 3rem; color: var(--thrift-forest-light);"></i>
                     </div>
-                    <h3 class="h4 fw-bold text-dark mb-2">No Approved Stores Found</h3>
+                    <h3 class="h4 fw-bold text-dark mb-2">No Approved Stores Found in India</h3>
                     <p class="text-muted mb-4" style="max-width: 480px; margin: 0 auto;">
-                        We couldn't find any approved thrift stores matching your search filters. Try clearing your search or exploring another category.
+                        We couldn't find any approved thrift stores in India matching your search filters. Stores without verified geographic coordinates in India are excluded from public discovery.
                     </p>
                     <a href="{{ url_for('stores') }}" class="btn btn-thrift-primary d-inline-flex align-items-center gap-2" id="btn-clear-search">
                         <i class="bi bi-arrow-counterclockwise"></i>

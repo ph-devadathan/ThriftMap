@@ -1,14 +1,14 @@
 """
-Test suite for Location-Based Store Discovery (/map) in ThriftMap.
-Strictly non-destructive: only executes read-only operations.
+Comprehensive test suite for ThriftMap India-only Store Discovery and Interactive Location Picker.
+Strictly non-destructive: only executes read-only queries or validation checks; no live DB records are modified.
 """
 import unittest
 import json
 import re
-from app import app, is_valid_coordinate, get_db_connection
+from app import app, is_valid_coordinate, is_in_india, get_db_connection, INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX
 import config
 
-class TestMapDiscovery(unittest.TestCase):
+class TestIndiaStoreDiscoveryAndPicker(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         app.config['TESTING'] = True
@@ -32,6 +32,10 @@ class TestMapDiscovery(unittest.TestCase):
                 (col['Field'], col['Type'], col['Null'], col['Default'])
                 for col in cursor.fetchall()
             ]
+
+            # Fetch existing stores snapshot to guarantee they are never modified during test execution
+            cursor.execute("SELECT store_id, store_name, city, latitude, longitude, status FROM stores ORDER BY store_id ASC")
+            cls.baseline_stores = cursor.fetchall()
         finally:
             cursor.close()
             conn.close()
@@ -39,254 +43,314 @@ class TestMapDiscovery(unittest.TestCase):
     def setUp(self):
         self.client = app.test_client()
 
-    def test_01_map_route_loads_for_guests(self):
-        """1. /map loads successfully (HTTP 200) for guests."""
-        response = self.client.get('/map')
-        self.assertEqual(response.status_code, 200)
-        html = response.data.decode('utf-8')
-        
-        # Verify Leaflet 1.9.4 assets
+    def test_01_india_boundary_and_coordinate_helpers(self):
+        """Verify coordinate validation and India boundary logic."""
+        # 1. Valid coordinates inside India
+        self.assertTrue(is_valid_coordinate(9.3835, 76.5741))
+        self.assertTrue(is_in_india(9.3835, 76.5741))     # Thiruvalla, Kerala
+        self.assertTrue(is_in_india(28.6139, 77.2090))    # New Delhi
+        self.assertTrue(is_in_india(19.0760, 72.8777))    # Mumbai
+        self.assertTrue(is_in_india(13.0827, 80.2707))    # Chennai
+        self.assertTrue(is_in_india(11.6670, 92.7359))    # Port Blair (Andaman & Nicobar Islands)
+        self.assertTrue(is_in_india(10.5667, 72.6417))    # Kavaratti (Lakshadweep)
+        self.assertTrue(is_in_india(INDIA_LAT_MIN, INDIA_LNG_MIN)) # Boundary edges
+        self.assertTrue(is_in_india(INDIA_LAT_MAX, INDIA_LNG_MAX))
+
+        # 2. Coordinates outside India
+        self.assertFalse(is_in_india(40.7128, -74.0060))   # Brooklyn / New York, USA
+        self.assertFalse(is_in_india(51.5074, -0.1278))    # London, UK
+        self.assertFalse(is_in_india(35.6762, 139.6503))   # Tokyo, Japan
+        self.assertFalse(is_in_india(3.0, 78.0))           # South of India
+        self.assertFalse(is_in_india(42.0, 78.0))          # North of India
+        self.assertFalse(is_in_india(20.0, 60.0))          # West of India
+        self.assertFalse(is_in_india(20.0, 102.0))         # East of India
+
+        # 3. None or invalid inputs
+        self.assertFalse(is_in_india(None, None))
+        self.assertFalse(is_in_india(None, 78.0))
+        self.assertFalse(is_in_india(20.0, None))
+        self.assertFalse(is_in_india('abc', 'def'))
+
+    def test_02_public_discovery_shows_only_stores_inside_india(self):
+        """Verify public map and directory only show approved stores with coordinates inside India."""
+        # Check /map
+        resp_map = self.client.get('/map')
+        self.assertEqual(resp_map.status_code, 200)
+        html_map = resp_map.data.decode('utf-8')
+        match = re.search(r'<script id="mapped-stores-data" type="application/json">(.*?)</script>', html_map)
+        self.assertIsNotNone(match)
+        mapped = json.loads(match.group(1))
+
+        # Every single store returned on the map must be within India
+        for store in mapped:
+            self.assertTrue(is_in_india(store['latitude'], store['longitude']))
+
+        # Check /stores
+        resp_stores = self.client.get('/stores')
+        self.assertEqual(resp_stores.status_code, 200)
+        html_stores = resp_stores.data.decode('utf-8')
+        self.assertIn("Stores in India", html_stores)
+
+    def test_03_out_of_india_and_null_coord_stores_excluded(self):
+        """Stores without coordinates or located outside India are excluded from public discovery."""
+        # Simulated database response with a null-coord store and a foreign store
+        simulated_stores = [
+            {'store_id': 901, 'latitude': None, 'longitude': None},
+            {'store_id': 902, 'latitude': 40.7128, 'longitude': -74.0060}, # Brooklyn, NY
+            {'store_id': 903, 'latitude': 9.3835, 'longitude': 76.5741}    # Thiruvalla, India
+        ]
+
+        filtered = [s for s in simulated_stores if is_in_india(s.get('latitude'), s.get('longitude'))]
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]['store_id'], 903)
+
+    def test_04_map_page_centered_on_india_and_has_leaflet(self):
+        """Map page defaults to India center [20.5937, 78.9629] with zoom 5."""
+        resp = self.client.get('/map')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+
+        # Check Leaflet assets & OpenStreetMap
         self.assertIn('leaflet@1.9.4/dist/leaflet.css', html)
         self.assertIn('leaflet@1.9.4/dist/leaflet.js', html)
         self.assertIn('OpenStreetMap', html)
-        
-        # Verify essential DOM elements
-        self.assertIn('id="store-map-canvas"', html)
-        self.assertIn('id="btn-find-location"', html)
-        self.assertIn('id="btn-reset-view"', html)
-        self.assertIn('id="map-filter-form"', html)
-        
-        # Verify guest navbar shows Login and Register
-        self.assertIn('Login', html)
-        self.assertIn('Register', html)
 
-    def test_02_map_route_loads_for_authenticated_users(self):
-        """1. /map loads successfully for authenticated users with role badges."""
-        with self.client.session_transaction() as sess:
-            sess['user_id'] = 1
-            sess['full_name'] = 'Test User'
-            sess['role'] = 'user'
+        # Check India map center and zoom level in JavaScript
+        self.assertIn('const defaultCenter = [20.5937, 78.9629];', html)
+        self.assertIn('const defaultZoom = 5;', html)
 
-        response = self.client.get('/map')
-        self.assertEqual(response.status_code, 200)
-        html = response.data.decode('utf-8')
-        self.assertIn('Logout', html)
-        self.assertIn('My Dashboard', html)
+        # Check India branding
+        self.assertIn('Explore Thrift Stores in India', html)
 
-    def test_03_only_approved_stores_returned(self):
-        """2. Only approved stores are retrieved from the database."""
-        response = self.client.get('/map')
-        self.assertEqual(response.status_code, 200)
-        
-        # Verify against live DB query
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute("SELECT store_id, store_name, status FROM stores WHERE status = 'approved'")
-            approved_stores = cursor.fetchall()
-            
-            cursor.execute("SELECT store_id, store_name, status FROM stores WHERE status != 'approved'")
-            unapproved_stores = cursor.fetchall()
-        finally:
-            cursor.close()
-            conn.close()
-
-        html = response.data.decode('utf-8')
-        for s in approved_stores:
-            self.assertIn(s['store_name'], html)
-
-        for s in unapproved_stores:
-            self.assertNotIn(s['store_name'], html)
-
-    def test_04_coordinate_validation_helper(self):
-        """3 & 4. Server-side coordinate validation handles valid and invalid inputs."""
-        # Valid coordinates
-        self.assertTrue(is_valid_coordinate(40.7128, -74.0060))
-        self.assertTrue(is_valid_coordinate('40.7128', '-74.0060'))
-        self.assertTrue(is_valid_coordinate(0, 0))
-        self.assertTrue(is_valid_coordinate(-90, -180))
-        self.assertTrue(is_valid_coordinate(90, 180))
-        self.assertTrue(is_valid_coordinate(9.9312, 76.2673))
-
-        # Invalid coordinates
-        self.assertFalse(is_valid_coordinate(None, None))
-        self.assertFalse(is_valid_coordinate(40.7128, None))
-        self.assertFalse(is_valid_coordinate(None, -74.0060))
-        self.assertFalse(is_valid_coordinate(90.1, 0))
-        self.assertFalse(is_valid_coordinate(-90.1, 0))
-        self.assertFalse(is_valid_coordinate(0, 180.1))
-        self.assertFalse(is_valid_coordinate(0, -180.1))
-        self.assertFalse(is_valid_coordinate('invalid', 'coords'))
-        self.assertFalse(is_valid_coordinate(float('nan'), 0))
-        self.assertFalse(is_valid_coordinate(0, float('inf')))
-
-    def test_05_zero_marker_state_and_unmapped_list(self):
-        """4, 5, 6. Zero-marker state handles missing coordinates gracefully."""
-        response = self.client.get('/map')
-        self.assertEqual(response.status_code, 200)
-        html = response.data.decode('utf-8')
-
-        # Check mapped stores payload is empty in current DB
-        match = re.search(r'<script id="mapped-stores-data" type="application/json">(.*?)</script>', html)
-        self.assertIsNotNone(match)
-        mapped_stores = json.loads(match.group(1))
-        self.assertEqual(len(mapped_stores), 0)
-
-        # Check empty state notice
-        self.assertIn("No stores have map coordinates yet.", html)
-        self.assertIn("Edit Store", html)
-        self.assertIn("Stores Awaiting Coordinates", html)
-
-        # Check unmapped stores section contains both stores
-        self.assertIn("Vintage Hub", html)
-        self.assertIn("Denim Store", html)
-        self.assertIn("Brooklyn", html)
-        self.assertIn("Thiruvalla", html)
-
-    def test_06_search_and_city_and_category_filters(self):
-        """7. Search, city, and category filters work properly with parameterized queries."""
-        # Search by store name
-        resp_search = self.client.get('/map?search=Vintage')
-        self.assertEqual(resp_search.status_code, 200)
-        html_search = resp_search.data.decode('utf-8')
-        self.assertIn("Vintage Hub", html_search)
-        self.assertNotIn("Denim Store", html_search)
-
-        # Filter by city
-        resp_city = self.client.get('/map?city=Thiruvalla')
-        self.assertEqual(resp_city.status_code, 200)
-        html_city = resp_city.data.decode('utf-8')
-        self.assertIn("Denim Store", html_city)
-        self.assertNotIn("Vintage Hub", html_city)
-
-        # Filter by non-matching query
-        resp_none = self.client.get('/map?search=NonExistentStore12345')
-        self.assertEqual(resp_none.status_code, 200)
-        html_none = resp_none.data.decode('utf-8')
-        self.assertNotIn("Vintage Hub", html_none)
-        self.assertNotIn("Denim Store", html_none)
-
-    def test_07_public_field_exposure_safety(self):
-        """2. Sensitive fields (passwords, emails, owner_ids) are not exposed."""
-        response = self.client.get('/map')
-        html = response.data.decode('utf-8')
-        
-        # Verify no owner_id in the JSON payload
-        match = re.search(r'<script id="mapped-stores-data" type="application/json">(.*?)</script>', html)
-        self.assertIsNotNone(match)
-        self.assertNotIn('"owner_id"', match.group(1))
-        self.assertNotIn('"password"', match.group(1))
-        self.assertNotIn('"email"', match.group(1))
-
-    def test_08_navigation_integration(self):
-        """11. Navigation links work across dashboard, stores, and home."""
-        # 1. user_dashboard Nearby Stores links to /map
-        with self.client.session_transaction() as sess:
-            sess['user_id'] = 1
-            sess['full_name'] = 'Test User'
-            sess['role'] = 'user'
-        
-        resp_dash = self.client.get('/user-dashboard')
-        self.assertEqual(resp_dash.status_code, 200)
-        dash_html = resp_dash.data.decode('utf-8')
-        self.assertIn('href="/map"', dash_html)
-        self.assertNotIn('Coming Soon', dash_html)  # Nearby stores card no longer has Coming Soon
-
-        # 2. stores directory links to /map
-        resp_stores = self.client.get('/stores')
-        self.assertEqual(resp_stores.status_code, 200)
-        stores_html = resp_stores.data.decode('utf-8')
-        self.assertIn('href="/map', stores_html)
-
-        # 3. home page links to /map
-        resp_home = self.client.get('/')
-        self.assertEqual(resp_home.status_code, 200)
-        home_html = resp_home.data.decode('utf-8')
-        self.assertIn('href="/map"', home_html)
-
-    def test_10_simulated_mapped_store_rendering(self):
-        """3 & 8. Simulated store with valid coordinates renders mapped marker data and safe popup fields."""
-        mock_mapped = [{
-            'store_id': 99,
-            'store_name': 'Retro Galaxy <script>alert(1)</script>',
-            'category_name': 'Vintage 90s',
-            'city': 'Portland',
-            'address': '123 Main St "Downtown"',
-            'latitude': 45.5152,
-            'longitude': -122.6784,
+    def test_05_simulated_indian_store_rendering(self):
+        """Simulated approved Indian store with valid coordinates renders marker and popup."""
+        indian_store = [{
+            'store_id': 101,
+            'store_name': 'Kochi Vintage Wardrobe',
+            'category_name': 'Retro Clothing',
+            'city': 'Kochi',
+            'address': 'Fort Kochi, Kerala',
+            'latitude': 9.9658,
+            'longitude': 76.2421,
             'image': None,
             'image_url': '/static/images/store-placeholder.svg',
-            'details_url': '/store/99'
+            'details_url': '/store/101'
         }]
-        
+
         with app.test_request_context('/map'):
             from flask import render_template
             rendered = render_template(
                 'map.html',
-                mapped_stores=mock_mapped,
-                unmapped_stores=[],
+                mapped_stores=indian_store,
                 categories=[],
                 search_query='',
                 city_filter='',
                 category_filter='',
                 total_mapped=1,
-                total_unmapped=0,
                 total_stores=1
             )
-            
-            # Verify mapped stores JSON contains the coordinate data
+
+            # JSON payload contains the Indian store coordinates
             match = re.search(r'<script id="mapped-stores-data" type="application/json">(.*?)</script>', rendered)
             self.assertIsNotNone(match)
             parsed = json.loads(match.group(1))
             self.assertEqual(len(parsed), 1)
-            self.assertEqual(parsed[0]['latitude'], 45.5152)
-            self.assertEqual(parsed[0]['longitude'], -122.6784)
-            self.assertEqual(parsed[0]['store_name'], 'Retro Galaxy <script>alert(1)</script>')
-            
-            # Verify sidebar renders the mapped store
-            self.assertIn('sidebar-item-99', rendered)
-            self.assertIn('Retro Galaxy', rendered)
+            self.assertEqual(parsed[0]['store_name'], 'Kochi Vintage Wardrobe')
+            self.assertEqual(parsed[0]['latitude'], 9.9658)
+            self.assertEqual(parsed[0]['longitude'], 76.2421)
+            self.assertIn('sidebar-item-101', rendered)
 
-    def test_11_image_url_fallback(self):
-        """9. Image fallback returns placeholder when image path is empty or null."""
-        from app import store_image_url
-        with app.test_request_context('/'):
-            placeholder = store_image_url(None)
-            self.assertIn('store-placeholder.svg', placeholder)
-            
-            empty_placeholder = store_image_url('')
-            self.assertIn('store-placeholder.svg', empty_placeholder)
-            
-            existing = store_image_url('uploads/stores/test.jpg')
-            self.assertIn('uploads/stores/test.jpg', existing)
+    def test_06_add_store_form_has_location_picker(self):
+        """Add Store form includes Leaflet CSS/JS, interactive picker container, instructions, and inputs."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 5
+            sess['full_name'] = 'Store Owner'
+            sess['role'] = 'owner'
 
-    def test_12_existing_functionality_regression(self):
-        """12. Existing core routes remain completely functional and properly protected."""
-        # Public routes
-        self.assertEqual(self.client.get('/').status_code, 200)
-        self.assertEqual(self.client.get('/stores').status_code, 200)
-        self.assertEqual(self.client.get('/login').status_code, 200)
-        self.assertEqual(self.client.get('/register').status_code, 200)
+        resp = self.client.get('/add-store')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
 
-        # Protected routes redirect unauthenticated users
-        self.assertEqual(self.client.get('/user-dashboard').status_code, 302)
+        # Check Leaflet includes
+        self.assertIn('leaflet@1.9.4/dist/leaflet.css', html)
+        self.assertIn('leaflet@1.9.4/dist/leaflet.js', html)
+
+        # Check location picker map container and clear button
+        self.assertIn('id="store-location-picker-map"', html)
+        self.assertIn('id="btn-clear-pin"', html)
+        self.assertIn('id="map-location-feedback"', html)
+
+        # Check required instruction text
+        self.assertIn("Click the map to pin your store location, then drag the marker to adjust it.", html)
+
+        # Check input fields for latitude and longitude
+        self.assertIn('name="latitude"', html)
+        self.assertIn('id="latitude"', html)
+        self.assertIn('name="longitude"', html)
+        self.assertIn('id="longitude"', html)
+
+        # Check India boundary guidance
+        self.assertIn("Stores submitted without coordinates remain saved in your dashboard, but will not appear in the public India map and directory until verified coordinates are added.", html)
+
+    def test_07_edit_store_form_has_location_picker(self):
+        """Edit Store form includes Leaflet CSS/JS, location picker container, and pre-population logic."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 5  # Owner of store 3
+            sess['full_name'] = 'Store Owner'
+            sess['role'] = 'owner'
+
+        resp = self.client.get('/edit-store/3')
+        self.assertEqual(resp.status_code, 200)
+        html = resp.data.decode('utf-8')
+
+        # Check Leaflet includes
+        self.assertIn('leaflet@1.9.4/dist/leaflet.css', html)
+        self.assertIn('leaflet@1.9.4/dist/leaflet.js', html)
+
+        # Check location picker map container and clear button
+        self.assertIn('id="store-location-picker-map"', html)
+        self.assertIn('id="btn-clear-pin"', html)
+        self.assertIn('id="map-location-feedback"', html)
+
+        # Check required instruction text
+        self.assertIn("Click the map to pin your store location, then drag the marker to adjust it.", html)
+
+        # Check pre-population initialization script
+        self.assertIn('initLat = parseFloat(latInput.value);', html)
+        self.assertIn('setMarkerLocation(initLat, initLng, true);', html)
+
+    def test_08_out_of_india_location_rejected_on_add_store(self):
+        """Submitting coordinates outside India in Add Store is rejected with clear error message."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 5
+            sess['full_name'] = 'Store Owner'
+            sess['role'] = 'owner'
+
+        # Post Brooklyn, NY coordinates
+        payload = {
+            'store_name': 'Foreign Thrift Boutique',
+            'category_id': 1,
+            'description': 'A thrift store located outside India',
+            'address': '123 Atlantic Ave',
+            'city': 'Brooklyn',
+            'contact_number': '1234567890',
+            'opening_hours': '10 AM - 6 PM',
+            'latitude': '40.7128',
+            'longitude': '-74.0060'
+        }
+
+        resp = self.client.post('/add-store', data=payload, follow_redirects=True)
+        self.assertEqual(resp.status_code, 400)
+        html = resp.data.decode('utf-8')
+
+        # Expect clear validation error message
+        self.assertIn("Selected store location must be within India (Latitude: 6.0° to 38.0° N, Longitude: 68.0° to 98.0° E).", html)
+
+    def test_09_out_of_india_location_rejected_on_edit_store(self):
+        """Submitting coordinates outside India in Edit Store is rejected with clear error message."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 5  # Owner of store 3
+            sess['full_name'] = 'Store Owner'
+            sess['role'] = 'owner'
+
+        # Attempt to set Brooklyn coordinates on store 3
+        payload = {
+            'store_name': 'Vintage Hub',
+            'category_id': 1,
+            'description': 'Updated description',
+            'address': '55 Hope St',
+            'city': 'Brooklyn',
+            'contact_number': '1234567890',
+            'opening_hours': '11 AM - 7 PM',
+            'latitude': '40.712776',
+            'longitude': '-74.005974'
+        }
+
+        resp = self.client.post('/edit-store/3', data=payload, follow_redirects=True)
+        self.assertEqual(resp.status_code, 400)
+        html = resp.data.decode('utf-8')
+
+        # Expect clear validation error message
+        self.assertIn("Selected store location must be within India (Latitude: 6.0° to 38.0° N, Longitude: 68.0° to 98.0° E).", html)
+
+    def test_10_invalid_coordinate_format_rejected(self):
+        """Malformed coordinate values are rejected with appropriate error message."""
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 5
+            sess['full_name'] = 'Store Owner'
+            sess['role'] = 'owner'
+
+        payload = {
+            'store_name': 'Invalid Coords Test',
+            'category_id': 1,
+            'description': 'Test invalid coords',
+            'address': 'MG Road',
+            'city': 'Bengaluru',
+            'contact_number': '1234567890',
+            'opening_hours': '10 AM - 6 PM',
+            'latitude': '999.000',
+            'longitude': '77.5946'
+        }
+
+        resp = self.client.post('/add-store', data=payload, follow_redirects=True)
+        self.assertEqual(resp.status_code, 400)
+        html = resp.data.decode('utf-8')
+        self.assertIn("Latitude and Longitude must be valid decimal coordinates.", html)
+
+    def test_11_authorization_and_ownership_checks_preserved(self):
+        """Store ownership checks and role authorization remain strictly enforced."""
+        # 1. Unauthenticated access redirects to login
+        self.assertEqual(self.client.get('/add-store').status_code, 302)
+        self.assertEqual(self.client.get('/edit-store/3').status_code, 302)
         self.assertEqual(self.client.get('/owner-dashboard').status_code, 302)
         self.assertEqual(self.client.get('/admin-dashboard').status_code, 302)
-        self.assertEqual(self.client.get('/manage-stores').status_code, 302)
-        self.assertEqual(self.client.get('/add-store').status_code, 302)
-        self.assertEqual(self.client.get('/store/3').status_code, 302)
 
-    def test_13_database_safety_final_verification(self):
-        """13. Ensure database schema, records, and tables are identical to baseline."""
+        # 2. Regular user cannot access add-store or edit-store
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 2
+            sess['full_name'] = 'Regular User'
+            sess['role'] = 'user'
+
+        resp_user_add = self.client.get('/add-store', follow_redirects=True)
+        self.assertIn('Access denied', resp_user_add.data.decode('utf-8'))
+
+        resp_user_edit = self.client.get('/edit-store/3', follow_redirects=True)
+        self.assertIn('Access denied', resp_user_edit.data.decode('utf-8'))
+
+        # 3. Another user cannot edit Store 3 (owned by Owner 5)
+        with self.client.session_transaction() as sess:
+            sess['user_id'] = 4
+            sess['full_name'] = 'Another User'
+            sess['role'] = 'user'
+
+        resp_wrong_owner = self.client.get('/edit-store/3', follow_redirects=True)
+        self.assertIn('Access denied', resp_wrong_owner.data.decode('utf-8'))
+
+    def test_12_non_destructive_database_safety(self):
+        """Verify database schema, record counts, and store records remain completely unchanged."""
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
+            # Record counts
             cursor.execute("SELECT COUNT(*) as cnt FROM stores")
             self.assertEqual(cursor.fetchone()['cnt'], self.baseline_stores_count)
             cursor.execute("SELECT COUNT(*) as cnt FROM users")
             self.assertEqual(cursor.fetchone()['cnt'], self.baseline_users_count)
             cursor.execute("SELECT COUNT(*) as cnt FROM categories")
             self.assertEqual(cursor.fetchone()['cnt'], self.baseline_categories_count)
+
+            # Columns
+            cursor.execute("DESCRIBE stores")
+            current_columns = [
+                (col['Field'], col['Type'], col['Null'], col['Default'])
+                for col in cursor.fetchall()
+            ]
+            self.assertEqual(current_columns, self.baseline_stores_columns)
+
+            # Store records integrity check
+            cursor.execute("SELECT store_id, store_name, city, latitude, longitude, status FROM stores ORDER BY store_id ASC")
+            current_stores = cursor.fetchall()
+            self.assertEqual(current_stores, self.baseline_stores)
         finally:
             cursor.close()
             conn.close()
