@@ -208,14 +208,118 @@
             transform: translateY(-1px);
         }
 
-        /* Footer */
-        .site-footer {
+        /* Reviews & Ratings Styles */
+        .rating-badge-header {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #ffffff;
+            font-size: 0.85rem;
+            padding: 0.35rem 0.85rem;
+            border-radius: 50rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .review-score-card {
+            background: var(--thrift-forest-wash);
+            border: 1px solid rgba(45, 106, 79, 0.15);
+        }
+
+        .star-rating-buttons {
+            display: inline-flex;
+            flex-direction: row-reverse;
+            gap: 0.25rem;
+        }
+
+        .star-radio {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+
+        .star-label {
+            cursor: pointer;
+            font-size: 1.6rem;
+            color: #d1d5db;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+
+        .star-label:hover,
+        .star-label:hover ~ .star-label,
+        .star-radio:checked ~ .star-label {
+            color: #f59e0b;
+        }
+
+        .star-label:hover {
+            transform: scale(1.15);
+        }
+
+        .star-rating-static {
+            color: #f59e0b;
+            letter-spacing: 1px;
+        }
+
+        .review-card {
             background: #ffffff;
-            border-top: 1px solid var(--thrift-border);
-            padding: 1.5rem 0;
-            color: var(--thrift-text-muted);
-            font-size: 0.88rem;
-            margin-top: auto;
+            border: 1px solid var(--thrift-border);
+            border-radius: 14px;
+            padding: 1.35rem 1.5rem;
+            transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+
+        .review-card:hover {
+            box-shadow: 0 6px 18px rgba(15, 41, 30, 0.05);
+            border-color: rgba(45, 106, 79, 0.3);
+        }
+
+        .user-review-card {
+            background: #fbfdfc;
+            border: 1.5px solid var(--thrift-forest-light);
+            box-shadow: 0 4px 14px rgba(45, 106, 79, 0.08);
+        }
+
+        .avatar-circle {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .avatar-circle-user {
+            background: linear-gradient(135deg, var(--thrift-terracotta), var(--thrift-amber-gold));
+        }
+
+        .review-comment-text {
+            color: var(--thrift-text-main);
+            line-height: 1.6;
+            white-space: pre-line;
+            word-break: break-word;
+        }
+
+        .rating-bar {
+            height: 8px;
+            border-radius: 4px;
+            background-color: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .rating-bar-fill {
+            height: 100%;
+            background-color: #f59e0b;
+            border-radius: 4px;
+            transition: width 0.4s ease;
         }
     </style>
 </head>
@@ -271,6 +375,28 @@
     <main class="py-4 py-md-5" id="main-content">
         <div class="container">
 
+            <!-- Flashed Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                  <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert" id="store-alert-message">
+                    {% if alert_class == 'success' %}
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    {% elif alert_class == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                    {% elif alert_class == 'info' %}
+                      <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    {% endif %}
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
             <!-- Breadcrumbs Navigation -->
             <nav aria-label="breadcrumb" class="mb-3">
                 <ol class="breadcrumb mb-0">
@@ -296,6 +422,18 @@
                                     <i class="bi bi-patch-check-fill"></i>
                                     <span>Approved Store</span>
                                 </span>
+                                {% if total_reviews > 0 %}
+                                    <a href="#reviews" class="rating-badge-header text-decoration-none" id="badge-store-rating">
+                                        <i class="bi bi-star-fill text-warning"></i>
+                                        <span class="fw-bold">{{ "%.1f"|format(avg_rating) }}</span>
+                                        <span class="opacity-75">({{ total_reviews }} {{ 'review' if total_reviews == 1 else 'reviews' }})</span>
+                                    </a>
+                                {% else %}
+                                    <a href="#reviews" class="rating-badge-header text-decoration-none opacity-75" id="badge-store-rating">
+                                        <i class="bi bi-star"></i>
+                                        <span>No reviews yet</span>
+                                    </a>
+                                {% endif %}
                             </div>
                             <h1 class="h2 fw-bold text-white mb-1" id="detail-store-name">{{ store.store_name }}</h1>
                             <p class="text-white-50 mb-0 small">
@@ -438,6 +576,245 @@
                         </div>
                     </div>
 
+                    <!-- Section 5: Customer Reviews & Ratings -->
+                    <div class="section-header d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4" id="reviews">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <span>Customer Reviews & Ratings</span>
+                        </div>
+                        {% if total_reviews > 0 %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 small" id="total-reviews-count-badge">
+                                {{ total_reviews }} {{ 'Review' if total_reviews == 1 else 'Reviews' }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Reviews Summary Overview -->
+                    <div class="row g-3 mb-4" id="reviews-summary-container">
+                        <div class="col-lg-4 col-md-5">
+                            <div class="review-score-card h-100 p-4 text-center rounded-4 border d-flex flex-column justify-content-center">
+                                {% if total_reviews > 0 %}
+                                    <div class="display-4 fw-bold text-dark mb-1" id="avg-rating-value">{{ "%.1f"|format(avg_rating) }}</div>
+                                    <div class="star-rating-static fs-5 mb-2" id="avg-rating-stars">
+                                        {% for i in range(1, 6) %}
+                                            {% if avg_rating >= i %}
+                                                <i class="bi bi-star-fill"></i>
+                                            {% elif avg_rating >= (i - 0.5) %}
+                                                <i class="bi bi-star-half"></i>
+                                            {% else %}
+                                                <i class="bi bi-star"></i>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    <p class="text-muted small mb-0" id="avg-rating-count-text">
+                                        Average of <strong>{{ total_reviews }}</strong> customer {{ 'review' if total_reviews == 1 else 'reviews' }}
+                                    </p>
+                                {% else %}
+                                    <div class="display-4 fw-bold text-muted mb-1" id="avg-rating-value">—</div>
+                                    <div class="star-rating-static fs-5 mb-2 text-muted" id="avg-rating-stars">
+                                        <i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i><i class="bi bi-star"></i>
+                                    </div>
+                                    <p class="text-muted small mb-0" id="avg-rating-count-text">No reviews yet. Be the first to review!</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="col-lg-8 col-md-7">
+                            <div class="p-3 p-md-4 rounded-4 border bg-white h-100 d-flex flex-column justify-content-center">
+                                {% for star_level in [5, 4, 3, 2, 1] %}
+                                    {% set count = rating_counts.get(star_level, 0) %}
+                                    {% set pct = (count / total_reviews * 100)|round if total_reviews > 0 else 0 %}
+                                    <div class="d-flex align-items-center gap-2 mb-2" id="rating-distribution-{{ star_level }}">
+                                        <span class="small fw-semibold text-muted text-nowrap" style="width: 50px;">{{ star_level }} star</span>
+                                        <div class="rating-bar flex-grow-1">
+                                            <div class="rating-bar-fill" style="width: {{ pct }}%;"></div>
+                                        </div>
+                                        <span class="small text-muted text-end text-nowrap" style="width: 38px;">{{ count }}</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User Review State / Form -->
+                    {% if user_review %}
+                        <!-- Case A: Current User Has Already Reviewed This Store -->
+                        <div class="review-card user-review-card mb-4" id="my-review-card">
+                            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-success rounded-pill px-3 py-1 fw-semibold" id="my-review-badge">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Your Review
+                                    </span>
+                                    <span class="star-rating-static" id="my-review-stars">
+                                        {% for i in range(1, 6) %}
+                                            <i class="bi bi-star{{ '-fill' if user_review.rating >= i else '' }}"></i>
+                                        {% endfor %}
+                                    </span>
+                                    <span class="fw-bold text-dark">{{ user_review.rating }}/5</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="small text-muted" id="my-review-date">
+                                        {{ user_review.created_at.strftime('%b %d, %Y') if user_review.created_at else '' }}
+                                    </span>
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="collapse" data-bs-target="#edit-review-panel" id="btn-toggle-edit-review" aria-expanded="false" aria-controls="edit-review-panel">
+                                        <i class="bi bi-pencil-square me-1"></i> Edit
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#deleteReviewModal" id="btn-open-delete-modal">
+                                        <i class="bi bi-trash3 me-1"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="review-comment-text mb-0" id="my-review-comment">{{ user_review.comment }}</p>
+
+                            <!-- Collapsible Edit Review Form -->
+                            <div class="collapse mt-3 pt-3 border-top" id="edit-review-panel">
+                                <form action="{{ url_for('edit_review', review_id=user_review.review_id) }}" method="POST" id="form-edit-review">
+                                    <h6 class="fw-bold text-dark mb-3">Edit Your Review</h6>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold small text-uppercase text-muted d-block">Rating <span class="text-danger">*</span></label>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="star-rating-buttons" id="edit-star-rating-selector">
+                                                {% for star_val in [5, 4, 3, 2, 1] %}
+                                                    <input type="radio" id="edit-star-{{ star_val }}" name="rating" value="{{ star_val }}" class="star-radio" {% if user_review.rating == star_val %}checked{% endif %} required>
+                                                    <label for="edit-star-{{ star_val }}" class="star-label" title="{{ star_val }} stars" data-value="{{ star_val }}">
+                                                        <i class="bi bi-star-fill"></i>
+                                                    </label>
+                                                {% endfor %}
+                                            </div>
+                                            <span class="badge bg-light text-dark border px-2 py-1 ms-2" id="edit-selected-rating-text">{{ user_review.rating }} Stars</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="edit-review-comment" class="form-label fw-bold small text-uppercase text-muted">Your Written Review <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="edit-review-comment" name="comment" rows="3" minlength="3" maxlength="1000" required>{{ user_review.comment }}</textarea>
+                                        <div class="d-flex justify-content-between mt-1">
+                                            <span class="small text-muted">3 to 1,000 characters</span>
+                                            <span class="small text-muted" id="edit-char-counter">{{ user_review.comment|length }} / 1000</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2">
+                                        <button type="submit" class="btn btn-thrift-primary rounded-pill px-4" id="btn-save-edit-review">
+                                            <i class="bi bi-check2-circle me-1"></i> Update Review
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-toggle="collapse" data-bs-target="#edit-review-panel" id="btn-cancel-edit-review">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Delete Review Confirmation Modal -->
+                        <div class="modal fade" id="deleteReviewModal" tabindex="-1" aria-labelledby="deleteReviewModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content rounded-4 border-0 shadow">
+                                    <div class="modal-header border-bottom-0 pb-0">
+                                        <h5 class="modal-title fw-bold" id="deleteReviewModalLabel">Delete Your Review</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body py-3">
+                                        <p class="text-muted mb-0">Are you sure you want to permanently delete your review for <strong>{{ store.store_name }}</strong>? This action cannot be undone.</p>
+                                    </div>
+                                    <div class="modal-footer border-top-0 pt-0">
+                                        <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                                        <form action="{{ url_for('delete_review', review_id=user_review.review_id) }}" method="POST" class="d-inline" id="form-delete-review">
+                                            <button type="submit" class="btn btn-danger rounded-pill px-4" id="btn-confirm-delete-review">
+                                                <i class="bi bi-trash3-fill me-1"></i> Delete Review
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    {% else %}
+                        <!-- Case B: Current User Has Not Reviewed Yet -> Display Write Review Form -->
+                        <div class="card border rounded-4 p-4 mb-4 shadow-sm" id="write-review-container" style="background: var(--thrift-forest-wash);">
+                            <h5 class="fw-bold text-dark mb-2" id="write-review-title">
+                                <i class="bi bi-pen-fill text-success me-1"></i> Write a Review
+                            </h5>
+                            <p class="text-muted small mb-3">Share your authentic thrift finds and store experience to help circular fashion shoppers.</p>
+
+                            <form action="{{ url_for('submit_review', store_id=store.store_id) }}" method="POST" id="form-submit-review">
+                                <div class="mb-3">
+                                    <label class="form-label fw-bold small text-uppercase text-muted d-block">Overall Rating <span class="text-danger">*</span></label>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="star-rating-buttons" id="star-rating-selector">
+                                            {% for star_val in [5, 4, 3, 2, 1] %}
+                                                <input type="radio" id="new-star-{{ star_val }}" name="rating" value="{{ star_val }}" class="star-radio" {% if submitted_rating|default('5') == star_val|string %}checked{% endif %} required>
+                                                <label for="new-star-{{ star_val }}" class="star-label" title="{{ star_val }} stars" data-value="{{ star_val }}">
+                                                    <i class="bi bi-star-fill"></i>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                        <span class="badge bg-light text-dark border px-3 py-2 fw-semibold ms-2" id="selected-rating-text">5 - Excellent</span>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="review-comment-input" class="form-label fw-bold small text-uppercase text-muted">Written Review <span class="text-danger">*</span></label>
+                                    <textarea class="form-control" id="review-comment-input" name="comment" rows="3" minlength="3" maxlength="1000" placeholder="Describe the boutique atmosphere, pricing, garment conditions, or vintage selection..." required>{{ submitted_comment or '' }}</textarea>
+                                    <div class="d-flex justify-content-between mt-1">
+                                        <span class="small text-muted">Minimum 3 characters</span>
+                                        <span class="small text-muted" id="char-counter">0 / 1000</span>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-thrift-primary rounded-pill px-4" id="btn-submit-review">
+                                    <i class="bi bi-send-fill me-1"></i> Submit Review
+                                </button>
+                            </form>
+                        </div>
+                    {% endif %}
+
+                    <!-- Individual Customer Reviews List -->
+                    <div class="mt-4 mb-4" id="reviews-list-section">
+                        <h6 class="fw-bold text-dark mb-3">Community Reviews ({{ total_reviews }})</h6>
+
+                        {% if reviews|length == 0 %}
+                            <div class="text-center py-5 bg-white rounded-4 border" id="no-reviews-state">
+                                <i class="bi bi-chat-heart text-muted display-5 d-block mb-2"></i>
+                                <h6 class="fw-bold text-dark">No reviews yet</h6>
+                                <p class="text-muted small mb-0">Be the first to share your thrift shopping experience for {{ store.store_name }}!</p>
+                            </div>
+                        {% else %}
+                            <div class="d-flex flex-column gap-3" id="reviews-list">
+                                {% for rev in reviews %}
+                                    <div class="review-card {% if rev.user_id == current_user_id %}user-review-card{% endif %}" id="review-card-{{ rev.review_id }}">
+                                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="avatar-circle {% if rev.user_id == current_user_id %}avatar-circle-user{% endif %}" id="avatar-{{ rev.review_id }}">
+                                                    {{ rev.author_name[:2] }}
+                                                </div>
+                                                <div>
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        <strong class="text-dark" id="author-name-{{ rev.review_id }}">{{ rev.author_name }}</strong>
+                                                        {% if rev.user_id == current_user_id %}
+                                                            <span class="badge bg-success-subtle text-success rounded-pill px-2 py-0 ms-1 small" id="badge-author-you-{{ rev.review_id }}">You</span>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="star-rating-static small" id="review-stars-{{ rev.review_id }}">
+                                                        {% for i in range(1, 6) %}
+                                                            <i class="bi bi-star{{ '-fill' if rev.rating >= i else '' }}"></i>
+                                                        {% endfor %}
+                                                        <span class="text-dark fw-bold ms-1">{{ rev.rating }}/5</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="small text-muted" id="review-date-{{ rev.review_id }}">
+                                                {{ rev.created_at.strftime('%b %d, %Y') if rev.created_at else '' }}
+                                            </div>
+                                        </div>
+                                        <p class="review-comment-text mb-0" id="review-comment-{{ rev.review_id }}">{{ rev.comment }}</p>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
                     <!-- Bottom Action Buttons -->
                     <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 pt-3 border-top">
                         <a href="{{ url_for('stores') }}" class="btn btn-outline-secondary rounded-pill px-4 d-inline-flex align-items-center gap-2" id="btn-back-stores">
@@ -481,5 +858,65 @@
 
     <!-- Bootstrap 5 Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Review Rating & Character Counter Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const ratingLabels = {
+                '1': '1 - Poor',
+                '2': '2 - Fair',
+                '3': '3 - Good',
+                '4': '4 - Very Good',
+                '5': '5 - Excellent'
+            };
+
+            // New review rating change
+            const ratingInputs = document.querySelectorAll('#star-rating-selector .star-radio');
+            const ratingText = document.getElementById('selected-rating-text');
+            if (ratingInputs && ratingText) {
+                ratingInputs.forEach(input => {
+                    input.addEventListener('change', function () {
+                        ratingText.textContent = ratingLabels[this.value] || (this.value + ' Stars');
+                    });
+                    if (input.checked) {
+                        ratingText.textContent = ratingLabels[input.value] || (input.value + ' Stars');
+                    }
+                });
+            }
+
+            // Edit review rating change
+            const editRatingInputs = document.querySelectorAll('#edit-star-rating-selector .star-radio');
+            const editRatingText = document.getElementById('edit-selected-rating-text');
+            if (editRatingInputs && editRatingText) {
+                editRatingInputs.forEach(input => {
+                    input.addEventListener('change', function () {
+                        editRatingText.textContent = ratingLabels[this.value] || (this.value + ' Stars');
+                    });
+                });
+            }
+
+            // Character counter for new comment
+            const commentInput = document.getElementById('review-comment-input');
+            const charCounter = document.getElementById('char-counter');
+            if (commentInput && charCounter) {
+                const updateCounter = () => {
+                    charCounter.textContent = commentInput.value.length + ' / 1000';
+                };
+                commentInput.addEventListener('input', updateCounter);
+                updateCounter();
+            }
+
+            // Character counter for edit comment
+            const editCommentInput = document.getElementById('edit-review-comment');
+            const editCharCounter = document.getElementById('edit-char-counter');
+            if (editCommentInput && editCharCounter) {
+                const updateEditCounter = () => {
+                    editCharCounter.textContent = editCommentInput.value.length + ' / 1000';
+                };
+                editCommentInput.addEventListener('input', updateEditCounter);
+                updateEditCounter();
+            }
+        });
+    </script>
 </body>
 </html>

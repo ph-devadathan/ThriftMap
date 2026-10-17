@@ -2,7 +2,7 @@ import os
 import time
 import uuid
 import re
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
 from werkzeug.utils import secure_filename
 import mysql.connector
 from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
@@ -375,18 +375,14 @@ def store_map():
         total_stores=len(mapped_stores)
     )
 
-@app.route('/store/<int:store_id>')
-def store_details(store_id):
-    """Public route gated behind login to view complete store details."""
-    # 1. Login Gating Check: If user is not logged in, redirect to login with flash
-    if 'user_id' not in session:
-        flash("Please login to view complete store information.", 'warning')
-        return redirect(url_for('login'))
-
-    # 2. Fetch store details joining users and categories
+def get_store_details_data(store_id):
+    """
+    Fetch complete store information, approved status, customer reviews with author info,
+    average rating, star breakdown, and current user's review state.
+    Returns: (store, reviews, avg_rating, total_reviews, rating_counts, user_review)
+    """
     conn = None
     cursor = None
-    store = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -415,9 +411,269 @@ def store_details(store_id):
         """
         cursor.execute(query, (store_id,))
         store = cursor.fetchone()
-    except Exception as e:
-        print(f"Error fetching store details: {e}")
-        flash("An error occurred while loading store details.", 'danger')
+        if not store or store['status'] != 'approved':
+            return None, [], None, 0, {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}, None
+
+        reviews_query = """
+            SELECT 
+                r.review_id,
+                r.store_id,
+                r.user_id,
+                r.rating,
+                r.comment,
+                r.created_at,
+                u.full_name AS author_name,
+                u.role AS author_role
+            FROM reviews r
+            JOIN users u ON r.user_id = u.user_id
+            WHERE r.store_id = %s
+            ORDER BY r.created_at DESC, r.review_id DESC
+        """
+        cursor.execute(reviews_query, (store_id,))
+        reviews = cursor.fetchall()
+
+        total_reviews = len(reviews)
+        avg_rating = round(float(sum(r['rating'] for r in reviews)) / total_reviews, 1) if total_reviews > 0 else None
+
+        rating_counts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        for r in reviews:
+            rt = r.get('rating')
+            if rt in rating_counts:
+                rating_counts[rt] += 1
+
+        current_user_id = session.get('user_id')
+        user_review = next((r for r in reviews if r['user_id'] == current_user_id), None)
+
+        return store, reviews, avg_rating, total_reviews, rating_counts, user_review
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+def handle_submit_review(store_id):
+    """Process review submission with server-side validation, duplicate check, and DB persistence."""
+    if 'user_id' not in session:
+        flash("Please login to submit a review.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Verify store exists and is approved
+        cursor.execute("SELECT store_id, status FROM stores WHERE store_id = %s", (store_id,))
+        store = cursor.fetchone()
+        if not store or store['status'] != 'approved':
+            return render_template('404.html'), 404
+
+        # 2. Enforce one review per user per store
+        cursor.execute("SELECT review_id FROM reviews WHERE store_id = %s AND user_id = %s", (store_id, user_id))
+        existing_review = cursor.fetchone()
+        if existing_review:
+            flash("You have already reviewed this store. You can edit your existing review.", 'warning')
+            store_data, reviews, avg_rating, total_reviews, rating_counts, user_review = get_store_details_data(store_id)
+            return render_template(
+                'store_details.html',
+                store=store_data,
+                reviews=reviews,
+                avg_rating=avg_rating,
+                total_reviews=total_reviews,
+                rating_counts=rating_counts,
+                user_review=user_review,
+                current_user_id=user_id,
+                full_name=session.get('full_name'),
+                role=session.get('role')
+            ), 400
+
+        # 3. Server-side validation for rating and review comment
+        errors = []
+        rating_raw = request.form.get('rating', '').strip()
+        comment = request.form.get('comment', '').strip()
+
+        rating = None
+        try:
+            rating = int(rating_raw)
+            if rating < 1 or rating > 5:
+                errors.append("Rating must be an integer between 1 and 5.")
+        except (ValueError, TypeError):
+            errors.append("Rating must be a valid number between 1 and 5.")
+
+        if not comment:
+            errors.append("Review comment cannot be empty.")
+        elif len(comment) < 3:
+            errors.append("Review comment must be at least 3 characters long.")
+        elif len(comment) > 1000:
+            errors.append("Review comment must not exceed 1,000 characters.")
+
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            store_data, reviews, avg_rating, total_reviews, rating_counts, user_review = get_store_details_data(store_id)
+            return render_template(
+                'store_details.html',
+                store=store_data,
+                reviews=reviews,
+                avg_rating=avg_rating,
+                total_reviews=total_reviews,
+                rating_counts=rating_counts,
+                user_review=user_review,
+                current_user_id=user_id,
+                full_name=session.get('full_name'),
+                role=session.get('role'),
+                submitted_comment=comment,
+                submitted_rating=rating_raw
+            ), 400
+
+        # 4. Insert review using parameterized SQL
+        cursor.execute(
+            "INSERT INTO reviews (store_id, user_id, rating, comment) VALUES (%s, %s, %s, %s)",
+            (store_id, user_id, rating, comment)
+        )
+        conn.commit()
+        flash("Your review has been published successfully!", 'success')
+        return redirect(url_for('store_details', store_id=store_id) + '#reviews')
+
+    except mysql.connector.Error as e:
+        print(f"Database error submitting review: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while submitting your review.", 'danger')
+        return redirect(url_for('store_details', store_id=store_id))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/store/<int:store_id>', methods=['GET', 'POST'])
+def store_details(store_id):
+    """Public route gated behind login to view complete store details, ratings, and customer reviews."""
+    # 1. Login Gating Check: If user is not logged in, redirect to login with flash
+    if 'user_id' not in session:
+        flash("Please login to view complete store information.", 'warning')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        return handle_submit_review(store_id)
+
+    store, reviews, avg_rating, total_reviews, rating_counts, user_review = get_store_details_data(store_id)
+    # Only approved stores can be viewed. If store is pending, rejected or non-existent: Return 404
+    if not store:
+        return render_template('404.html'), 404
+
+    return render_template(
+        'store_details.html',
+        store=store,
+        reviews=reviews,
+        avg_rating=avg_rating,
+        total_reviews=total_reviews,
+        rating_counts=rating_counts,
+        user_review=user_review,
+        current_user_id=session.get('user_id'),
+        full_name=session.get('full_name'),
+        role=session.get('role')
+    )
+
+@app.route('/store/<int:store_id>/review', methods=['POST'])
+def submit_review(store_id):
+    """Endpoint specifically for submitting store reviews."""
+    return handle_submit_review(store_id)
+
+@app.route('/review/<int:review_id>/edit', methods=['GET', 'POST'])
+def edit_review(review_id):
+    """Edit an existing review. Strictly restricted: users can edit only their own reviews."""
+    if 'user_id' not in session:
+        flash("Please log in to edit your review.", 'warning')
+        return redirect(url_for('login'))
+
+    current_user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT review_id, store_id, user_id, rating, comment FROM reviews WHERE review_id = %s", (review_id,))
+        review = cursor.fetchone()
+        if not review:
+            flash("Review not found.", 'danger')
+            return render_template('404.html'), 404
+
+        # Strict authorization check: Only the author can edit their review
+        # Store owners cannot edit reviews written by others
+        if review['user_id'] != current_user_id:
+            abort(403, description="Unauthorized: You can only edit your own reviews.")
+
+        store_id = review['store_id']
+
+        if request.method == 'GET':
+            next_url = request.args.get('next')
+            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                return redirect(next_url)
+            return redirect(url_for('store_details', store_id=store_id) + '#reviews')
+
+        # Server-side validation
+        errors = []
+        rating_raw = request.form.get('rating', '').strip()
+        comment = request.form.get('comment', '').strip()
+
+        rating = None
+        try:
+            rating = int(rating_raw)
+            if rating < 1 or rating > 5:
+                errors.append("Rating must be an integer between 1 and 5.")
+        except (ValueError, TypeError):
+            errors.append("Rating must be a valid number between 1 and 5.")
+
+        if not comment:
+            errors.append("Review comment cannot be empty.")
+        elif len(comment) < 3:
+            errors.append("Review comment must be at least 3 characters long.")
+        elif len(comment) > 1000:
+            errors.append("Review comment must not exceed 1,000 characters.")
+
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            next_url = request.form.get('next')
+            if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+                return redirect(next_url)
+            store_data, reviews, avg_rating, total_reviews, rating_counts, user_review = get_store_details_data(store_id)
+            return render_template(
+                'store_details.html',
+                store=store_data,
+                reviews=reviews,
+                avg_rating=avg_rating,
+                total_reviews=total_reviews,
+                rating_counts=rating_counts,
+                user_review=user_review,
+                current_user_id=current_user_id,
+                full_name=session.get('full_name'),
+                role=session.get('role'),
+                submitted_comment=comment,
+                submitted_rating=rating_raw
+            ), 400
+
+        # Update using parameterized SQL
+        cursor.execute(
+            "UPDATE reviews SET rating = %s, comment = %s WHERE review_id = %s",
+            (rating, comment, review_id)
+        )
+        conn.commit()
+        flash("Your review has been updated successfully!", 'success')
+        next_url = request.form.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('store_details', store_id=store_id) + '#reviews')
+
+    except mysql.connector.Error as e:
+        print(f"Database error editing review: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while updating your review.", 'danger')
         return redirect(url_for('stores'))
     finally:
         if cursor:
@@ -425,16 +681,52 @@ def store_details(store_id):
         if conn and conn.is_connected():
             conn.close()
 
-    # 3. Only approved stores can be viewed. If store is pending or non-existent: Return 404
-    if not store or store['status'] != 'approved':
-        return render_template('404.html'), 404
+@app.route('/review/<int:review_id>/delete', methods=['POST'])
+def delete_review(review_id):
+    """Delete an existing review. Strictly restricted: users can delete only their own reviews."""
+    if 'user_id' not in session:
+        flash("Please log in to delete your review.", 'warning')
+        return redirect(url_for('login'))
 
-    return render_template(
-        'store_details.html',
-        store=store,
-        full_name=session.get('full_name'),
-        role=session.get('role')
-    )
+    current_user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT review_id, store_id, user_id FROM reviews WHERE review_id = %s", (review_id,))
+        review = cursor.fetchone()
+        if not review:
+            flash("Review not found.", 'danger')
+            return render_template('404.html'), 404
+
+        # Strict authorization check: Only the author can delete their review
+        # Store owners cannot delete reviews written by others
+        if review['user_id'] != current_user_id:
+            abort(403, description="Unauthorized: You can only delete your own reviews.")
+
+        store_id = review['store_id']
+
+        # Delete using parameterized SQL
+        cursor.execute("DELETE FROM reviews WHERE review_id = %s", (review_id,))
+        conn.commit()
+        flash("Your review has been deleted successfully.", 'success')
+        next_url = request.form.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('store_details', store_id=store_id) + '#reviews')
+
+    except mysql.connector.Error as e:
+        print(f"Database error deleting review: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while deleting your review.", 'danger')
+        return redirect(url_for('stores'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -642,6 +934,59 @@ def user_dashboard():
         stores=featured_stores
     )
 
+@app.route('/my-reviews')
+def my_reviews():
+    """Display reviews written by the currently logged-in user."""
+    if 'user_id' not in session:
+        flash("Please log in to view your reviews.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+    full_name = session.get('full_name')
+
+    conn = None
+    cursor = None
+    user_reviews = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                r.review_id,
+                r.store_id,
+                r.user_id,
+                r.rating,
+                r.comment,
+                r.created_at,
+                s.store_name,
+                s.city,
+                s.image AS store_image,
+                s.status AS store_status,
+                c.category_name
+            FROM reviews r
+            JOIN stores s ON r.store_id = s.store_id
+            LEFT JOIN categories c ON s.category_id = c.category_id
+            WHERE r.user_id = %s
+            ORDER BY r.created_at DESC, r.review_id DESC
+        """, (user_id,))
+        user_reviews = cursor.fetchall()
+    except Exception as e:
+        print(f"Error fetching user reviews: {e}")
+        flash("A database error occurred while loading your reviews.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template(
+        'my_reviews.html',
+        reviews=user_reviews,
+        full_name=full_name,
+        role=user_role
+    )
+
 @app.route('/owner-dashboard')
 def owner_dashboard():
     """Owner dashboard route protected by role-based access control."""
@@ -659,6 +1004,78 @@ def owner_dashboard():
         return redirect(url_for('login'))
 
     return render_template('owner_dashboard.html', full_name=session.get('full_name'), role=user_role)
+
+@app.route('/owner/reviews')
+@app.route('/owner-reviews')
+def owner_reviews():
+    """Route for store owners to view customer reviews for all stores they own."""
+    # 1. Access Control: Must be logged in
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    # 2. Access Control: Must be store owner
+    user_role = session.get('role')
+    if user_role != 'owner':
+        flash("Access denied. Only store owners can access this page.", 'danger')
+        if user_role == 'user':
+            return redirect(url_for('user_dashboard'))
+        elif user_role == 'admin':
+            return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('login'))
+
+    owner_id = session.get('user_id')
+    full_name = session.get('full_name')
+
+    conn = None
+    cursor = None
+    reviews = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                r.review_id,
+                r.store_id,
+                r.user_id,
+                r.rating,
+                r.comment,
+                r.created_at,
+                u.full_name AS reviewer_name,
+                u.email AS reviewer_email,
+                s.store_name,
+                s.city,
+                s.status AS store_status,
+                s.image AS store_image,
+                c.category_name
+            FROM reviews r
+            JOIN stores s ON r.store_id = s.store_id
+            JOIN users u ON r.user_id = u.user_id
+            LEFT JOIN categories c ON s.category_id = c.category_id
+            WHERE s.owner_id = %s
+            ORDER BY r.created_at DESC, r.review_id DESC
+        """, (owner_id,))
+        reviews = cursor.fetchall()
+    except Exception as e:
+        print(f"Error fetching owner reviews: {e}")
+        flash("A database error occurred while retrieving customer reviews.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    total_reviews = len(reviews)
+    avg_rating = round(sum(r['rating'] for r in reviews) / total_reviews, 1) if total_reviews > 0 else None
+
+    return render_template(
+        'owner_reviews.html',
+        reviews=reviews,
+        total_reviews=total_reviews,
+        avg_rating=avg_rating,
+        full_name=full_name,
+        role=user_role
+    )
 
 @app.route('/add-store', methods=['GET', 'POST'])
 def add_store():

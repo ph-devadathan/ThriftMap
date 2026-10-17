@@ -417,21 +417,21 @@
                     </div>
                 </div>
 
-                <!-- 6. My Reviews (future placeholder) -->
+                <!-- 6. My Reviews (Active) -->
                 <div class="col-md-6 col-lg-4">
-                    <div class="menu-card" id="menu-my-reviews" style="cursor: default;">
+                    <a href="{{ url_for('my_reviews') }}" class="menu-card" id="menu-my-reviews">
                         <div>
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <div class="menu-icon-box icon-box-terracotta mb-0">
                                     <i class="bi bi-star-fill"></i>
                                 </div>
-                                <span class="badge bg-secondary-subtle text-secondary border rounded-pill px-2 py-1 small">Future Feature</span>
+                                <span class="badge bg-light text-dark border rounded-pill px-2 py-1 small">Ratings & Reviews</span>
                             </div>
                             <h3 class="menu-title mt-2">My Reviews</h3>
                             <p class="menu-desc">See your store ratings, community recommendations, and thrift haul stories.</p>
                         </div>
-                        <span class="menu-arrow text-muted">Future Feature <i class="bi bi-clock"></i></span>
-                    </div>
+                        <span class="menu-arrow" style="color: var(--thrift-terracotta);">View Your Reviews <i class="bi bi-arrow-right"></i></span>
+                    </a>
                 </div>
             </div>
 
