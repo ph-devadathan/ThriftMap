@@ -6,6 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from werkzeug.utils import secure_filename
 import mysql.connector
 from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
+from recommendation_engine import HybridRecommendationEngine
 
 app = Flask(__name__)
 app.secret_key = 'thriftmap_dev_secret_key_2026'
@@ -895,11 +896,12 @@ def login():
 
 @app.route('/user-dashboard')
 def user_dashboard():
-    """User dashboard route protected by role-based access control with approved stores showcase."""
+    """User dashboard route protected by role-based access control with hybrid ML recommendations and store showcase."""
     if 'user_id' not in session:
         flash("Please log in to access your dashboard.", 'warning')
         return redirect(url_for('login'))
 
+    user_id = session.get('user_id')
     user_role = session.get('role')
     if user_role != 'user':
         flash("Access denied. You do not have permission to access the User Dashboard.", 'danger')
@@ -909,9 +911,15 @@ def user_dashboard():
             return redirect(url_for('admin_dashboard'))
         return redirect(url_for('login'))
 
+    if request.args.get('refresh') == '1':
+        flash("Recommendations recalculated with your latest preferences and activity.", 'info')
+
     conn = None
     cursor = None
     featured_stores = []
+    all_categories = []
+    user_pref_cat_ids = []
+    user_preferred_city = ''
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -939,6 +947,22 @@ def user_dashboard():
         """, (INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX))
         raw_featured = cursor.fetchall()
         featured_stores = [s for s in raw_featured if is_in_india(s.get('latitude'), s.get('longitude'))]
+
+        # Fetch all available categories for preference customization
+        cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
+        all_categories = cursor.fetchall()
+
+        # Fetch user preferences (graceful fallback if schema does not have preference columns)
+        try:
+            cursor.execute("SELECT preferred_categories, preferred_city FROM users WHERE user_id = %s", (user_id,))
+            user_prefs = cursor.fetchone() or {}
+            pref_cats_str = user_prefs.get('preferred_categories') or ''
+            user_pref_cat_ids = [int(c.strip()) for c in str(pref_cats_str).split(',') if c.strip().isdigit()]
+            user_preferred_city = user_prefs.get('preferred_city') or ''
+        except Exception:
+            user_pref_cat_ids = []
+            user_preferred_city = ''
+
     except Exception as e:
         print(f"Error fetching user dashboard stores: {e}")
     finally:
@@ -947,12 +971,45 @@ def user_dashboard():
         if conn and conn.is_connected():
             conn.close()
 
+    # Generate hybrid ML recommendations for the user
+    recommendations = []
+    try:
+        engine = HybridRecommendationEngine()
+        recommendations = engine.get_recommendations(user_id=user_id, limit=6)
+    except Exception as re_err:
+        print(f"Error generating hybrid recommendations: {re_err}")
+
     return render_template(
         'user_dashboard.html',
         full_name=session.get('full_name'),
         role=user_role,
-        stores=featured_stores
+        stores=featured_stores,
+        recommendations=recommendations,
+        all_categories=all_categories,
+        user_pref_cat_ids=user_pref_cat_ids,
+        user_preferred_city=user_preferred_city
     )
+
+@app.route('/update-preferences', methods=['POST'])
+def update_preferences():
+    """Allow user to update preferred categories and location for personalized ML recommendations."""
+    if 'user_id' not in session:
+        flash("Please log in to update preferences.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    selected_cats = request.form.getlist('preferred_categories')
+    city = request.form.get('preferred_city', '').strip()
+
+    try:
+        engine = HybridRecommendationEngine()
+        engine.update_user_preferences(user_id, preferred_categories=selected_cats, preferred_city=city)
+        flash("Your style and location preferences have been updated! Recommendations refreshed.", 'success')
+    except Exception as e:
+        print(f"Error updating user preferences: {e}")
+        flash("An error occurred while updating your preferences.", 'danger')
+
+    return redirect(url_for('user_dashboard') + '#recommendations-section')
 
 @app.route('/my-reviews')
 def my_reviews():
