@@ -565,6 +565,25 @@ def store_details(store_id):
     if not store:
         return render_template('404.html'), 404
 
+    # Check if currently logged in user saved this store
+    is_favorited = False
+    current_user_id = session.get('user_id')
+    if current_user_id:
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM favorites WHERE user_id = %s AND store_id = %s", (current_user_id, store_id))
+            is_favorited = cursor.fetchone() is not None
+        except Exception as e:
+            print(f"Error checking favorite status: {e}")
+        finally:
+            if cursor:
+                cursor.close()
+            if conn and conn.is_connected():
+                conn.close()
+
     return render_template(
         'store_details.html',
         store=store,
@@ -573,7 +592,8 @@ def store_details(store_id):
         total_reviews=total_reviews,
         rating_counts=rating_counts,
         user_review=user_review,
-        current_user_id=session.get('user_id'),
+        is_favorited=is_favorited,
+        current_user_id=current_user_id,
         full_name=session.get('full_name'),
         role=session.get('role')
     )
@@ -986,6 +1006,190 @@ def my_reviews():
         full_name=full_name,
         role=user_role
     )
+
+@app.route('/my-favorites')
+def my_favorites():
+    """Display saved/bookmarked thrift stores for the logged-in user."""
+    if 'user_id' not in session:
+        flash("Please log in to view your saved stores.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+    full_name = session.get('full_name')
+
+    conn = None
+    cursor = None
+    saved_stores = []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT 
+                f.favorite_id,
+                f.user_id,
+                f.store_id,
+                f.created_at AS saved_at,
+                s.store_name,
+                s.description,
+                s.city,
+                s.address,
+                s.contact_number,
+                s.image,
+                s.status,
+                c.category_name
+            FROM favorites f
+            JOIN stores s ON f.store_id = s.store_id
+            LEFT JOIN categories c ON s.category_id = c.category_id
+            WHERE f.user_id = %s
+            ORDER BY f.created_at DESC, f.favorite_id DESC
+        """, (user_id,))
+        saved_stores = cursor.fetchall()
+    except Exception as e:
+        print(f"Error fetching user favorites: {e}")
+        flash("A database error occurred while loading your saved stores.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template(
+        'my_favorites.html',
+        stores=saved_stores,
+        full_name=full_name,
+        role=user_role
+    )
+
+@app.route('/favorite/<int:store_id>/add', methods=['POST'])
+@app.route('/store/<int:store_id>/save', methods=['POST'])
+def save_favorite(store_id):
+    """Save an approved thrift store to user's favorites list."""
+    if 'user_id' not in session:
+        flash("Please log in to save stores.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT store_id, store_name, status FROM stores WHERE store_id = %s", (store_id,))
+        store = cursor.fetchone()
+        if not store or store['status'] != 'approved':
+            flash("Store not found or unavailable.", 'danger')
+            return render_template('404.html'), 404
+
+        cursor.execute("SELECT favorite_id FROM favorites WHERE user_id = %s AND store_id = %s", (user_id, store_id))
+        existing = cursor.fetchone()
+        if existing:
+            flash(f"'{store['store_name']}' is already in your saved stores.", 'info')
+        else:
+            cursor.execute("INSERT INTO favorites (user_id, store_id) VALUES (%s, %s)", (user_id, store_id))
+            conn.commit()
+            flash(f"'{store['store_name']}' has been added to your saved stores!", 'success')
+
+        next_url = request.form.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('store_details', store_id=store_id))
+    except mysql.connector.Error as e:
+        print(f"Database error adding favorite: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while saving the store.", 'danger')
+        return redirect(url_for('stores'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/favorite/<int:store_id>/remove', methods=['POST'])
+@app.route('/store/<int:store_id>/unsave', methods=['POST'])
+def remove_favorite_by_store(store_id):
+    """Remove a store from user's favorites list by store_id."""
+    if 'user_id' not in session:
+        flash("Please log in to manage your saved stores.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT f.favorite_id, s.store_name FROM favorites f JOIN stores s ON f.store_id = s.store_id WHERE f.user_id = %s AND f.store_id = %s", (user_id, store_id))
+        fav = cursor.fetchone()
+        if not fav:
+            cursor.execute("SELECT favorite_id FROM favorites WHERE store_id = %s", (store_id,))
+            other = cursor.fetchone()
+            if other:
+                abort(403, description="Unauthorized: You cannot remove another user's saved store.")
+            flash("Store was not found in your saved list.", 'info')
+        else:
+            cursor.execute("DELETE FROM favorites WHERE user_id = %s AND store_id = %s", (user_id, store_id))
+            conn.commit()
+            flash(f"Removed '{fav['store_name']}' from your saved stores.", 'success')
+
+        next_url = request.form.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('my_favorites'))
+    except mysql.connector.Error as e:
+        print(f"Database error removing favorite: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while removing the store.", 'danger')
+        return redirect(url_for('my_favorites'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/favorite/<int:favorite_id>/delete', methods=['POST'])
+def delete_favorite(favorite_id):
+    """Remove a favorite by favorite_id. Strictly restricted to the owner."""
+    if 'user_id' not in session:
+        flash("Please log in to manage your saved stores.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT f.favorite_id, f.user_id, s.store_name FROM favorites f JOIN stores s ON f.store_id = s.store_id WHERE f.favorite_id = %s", (favorite_id,))
+        fav = cursor.fetchone()
+        if not fav:
+            flash("Saved store record not found.", 'danger')
+            return render_template('404.html'), 404
+
+        if fav['user_id'] != user_id:
+            abort(403, description="Unauthorized: You cannot remove another user's saved store.")
+
+        cursor.execute("DELETE FROM favorites WHERE favorite_id = %s AND user_id = %s", (favorite_id, user_id))
+        conn.commit()
+        flash(f"Removed '{fav['store_name']}' from your saved stores.", 'success')
+
+        next_url = request.form.get('next')
+        if next_url and next_url.startswith('/') and not next_url.startswith('//'):
+            return redirect(next_url)
+        return redirect(url_for('my_favorites'))
+    except mysql.connector.Error as e:
+        print(f"Database error deleting favorite: {e}")
+        if conn:
+            conn.rollback()
+        flash("A database error occurred while deleting the favorite.", 'danger')
+        return redirect(url_for('my_favorites'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 @app.route('/owner-dashboard')
 def owner_dashboard():

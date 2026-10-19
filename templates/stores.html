@@ -552,13 +552,21 @@
                                             Curated secondhand boutique offering pre-loved fashion and accessories.
                                         {% endif %}
                                     </p>
-                                    <div class="mt-auto">
+                                    <div class="mt-auto d-flex align-items-center gap-2">
                                         <a href="{{ url_for('store_details', store_id=store.store_id) }}"
-                                           class="store-action-btn"
+                                           class="store-action-btn flex-grow-1"
                                            id="btn-view-details-{{ store.store_id }}">
                                             <span>View Details</span>
                                             <i class="bi bi-arrow-right"></i>
                                         </a>
+                                        {% if session.get('user_id') %}
+                                            <form action="{{ url_for('save_favorite', store_id=store.store_id) }}" method="POST" class="d-inline m-0">
+                                                <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+                                                <button type="submit" class="btn btn-outline-secondary btn-sm rounded-3 py-2 px-3" id="btn-card-save-{{ store.store_id }}" title="Save Store">
+                                                    <i class="bi bi-bookmark-heart text-danger"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </article>
