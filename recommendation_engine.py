@@ -14,10 +14,10 @@ Core Components:
    - Computes keyword/token overlap (Jaccard token similarity) over store descriptions, names,
      and user interaction keywords.
 2. Collaborative Filtering (S_collab):
-   - Constructs a sparse User-Item interaction matrix from implicit saves (favorites, weight=3.0)
-     and explicit ratings (reviews, 1-5 scale).
+   - Constructs signed preferences: favorite-only = +0.5; reviews override saves
+     with (rating - 3) / 2, ranging from -1 to +1.
    - Missing ratings/interactions are treated as unobserved/neutral, NEVER as negative ratings.
-   - Computes vector cosine similarity between target user and peer users across co-interacted stores.
+   - Uses signed cosine similarity with minimum nonzero overlap and overlap shrinkage.
    - Aggregates peer preference scores for candidate stores.
 3. Location Relevance (S_location):
    - Uses soft distance scoring via the Haversine formula based on store (latitude, longitude)
@@ -29,7 +29,7 @@ Core Components:
    - Cold-start & sparse users automatically fall back to content + location signals (w_collab=0).
 5. Authorization & Visibility Eligibility:
    - Strictly recommends ONLY stores with status = 'approved'.
-   - Returns explainable recommendation badges (e.g., "Similar Shoppers Loved", "Category Match").
+   - Returns explanations for category matches and interest from similar shoppers.
 """
 import math
 import re
@@ -56,6 +56,12 @@ def normalize_city(city_str):
     cleaned = re.sub(r'[^a-zA-Z0-9\s]', '', str(city_str)).strip().lower()
     return " ".join(cleaned.split())
 
+def resolve_preference(is_favorited, rating=None):
+    """An explicit review overrides a save; None means no observed interaction."""
+    if rating is not None:
+        return (float(rating) - 3.0) / 2.0
+    return 0.5 if is_favorited else None
+
 def haversine_distance_km(lat1, lon1, lat2, lon2):
     """Calculate the great circle distance in kilometers between two points on Earth."""
     try:
@@ -78,6 +84,9 @@ def haversine_distance_km(lat1, lon1, lat2, lon2):
 class HybridRecommendationEngine:
     """Production-ready hybrid recommendation engine with content, collaborative, and location signals."""
 
+    MIN_SHARED_PREFERENCES = 2
+    SIMILARITY_SHRINKAGE = 2.0
+
     def __init__(self, db_config=None):
         self.db_config = db_config or {
             'host': DB_HOST,
@@ -88,6 +97,20 @@ class HybridRecommendationEngine:
 
     def _get_connection(self):
         return mysql.connector.connect(**self.db_config)
+
+    def _peer_similarity(self, target, peer):
+        """Signed full-vector cosine, discounted for limited shared evidence."""
+        common = {sid for sid in target.keys() & peer.keys()
+                  if target[sid] != 0 and peer[sid] != 0}
+        n = len(common)
+        if n < self.MIN_SHARED_PREFERENCES:
+            return 0.0
+        target_norm = math.sqrt(sum(v * v for v in target.values()))
+        peer_norm = math.sqrt(sum(v * v for v in peer.values()))
+        if target_norm == 0 or peer_norm == 0:
+            return 0.0
+        cosine = sum(target[sid] * peer[sid] for sid in common) / (target_norm * peer_norm)
+        return max(0.0, cosine) * n / (n + self.SIMILARITY_SHRINKAGE)
 
     def get_recommendations(self, user_id, limit=6, exclude_interacted=False):
         """
@@ -168,17 +191,14 @@ class HybridRecommendationEngine:
             cursor.execute("SELECT user_id, store_id, rating FROM reviews WHERE rating IS NOT NULL")
             all_reviews = cursor.fetchall()
 
-            # Build interaction matrix: user_matrix[uid][sid] = score in [1, 5]
-            # Favorites given weight 3.5, reviews given their rating
+            # Sparse signed preferences; explicit reviews always override favorites.
             user_matrix = defaultdict(dict)
             for f in all_favorites:
-                user_matrix[f['user_id']][f['store_id']] = max(user_matrix[f['user_id']].get(f['store_id'], 0), 3.5)
+                user_matrix[f['user_id']][f['store_id']] = resolve_preference(True)
 
             for r in all_reviews:
                 uid, sid, rt = r['user_id'], r['store_id'], r['rating']
-                # If favorited and reviewed, combine for stronger signal
-                existing = user_matrix[uid].get(sid, 0)
-                user_matrix[uid][sid] = min(5.0, max(existing, float(rt)) + (0.5 if existing > 0 else 0.0))
+                user_matrix[uid][sid] = resolve_preference(False, rt)
 
             target_ratings = user_matrix.get(user_id, {})
 
@@ -193,32 +213,21 @@ class HybridRecommendationEngine:
 
             for s in approved_stores:
                 sid = s['store_id']
-                is_fav = sid in user_favorited_store_ids
-                rating_val = user_reviews.get(sid)
-                # Count positive interactions (favorited or rated >= 4 stars)
-                if is_fav or (rating_val is not None and rating_val >= 4):
+                # Only resolved positive evidence establishes implicit interests.
+                if target_ratings.get(sid, 0) > 0:
                     implicit_cat_ids.add(s['category_id'])
                     user_keywords.update(tokenize(s['store_name']))
                     user_keywords.update(tokenize(s['description']))
-                elif rating_val is not None and rating_val >= 3:
-                    user_keywords.update(tokenize(s['store_name']))
 
             # 6. Compute Collaborative User Similarities (Cosine Similarity)
             peer_similarities = {}
             if target_ratings:
-                target_norm = math.sqrt(sum(v * v for v in target_ratings.values()))
-                if target_norm > 0:
-                    for peer_id, peer_ratings in user_matrix.items():
-                        if peer_id == user_id:
-                            continue
-                        common_stores = set(target_ratings.keys()).intersection(peer_ratings.keys())
-                        if common_stores:
-                            dot_product = sum(target_ratings[sid] * peer_ratings[sid] for sid in common_stores)
-                            peer_norm = math.sqrt(sum(v * v for v in peer_ratings.values()))
-                            if peer_norm > 0:
-                                sim = dot_product / (target_norm * peer_norm)
-                                if sim > 0:
-                                    peer_similarities[peer_id] = sim
+                for peer_id, peer_ratings in user_matrix.items():
+                    if peer_id == user_id:
+                        continue
+                    sim = self._peer_similarity(target_ratings, peer_ratings)
+                    if sim > 0:
+                        peer_similarities[peer_id] = sim
 
             # 7. Score Each Approved Candidate Store
             scored_candidates = []
@@ -312,8 +321,8 @@ class HybridRecommendationEngine:
                     collab_sim_sum = 0.0
                     for peer_id, sim in peer_similarities.items():
                         if sid in user_matrix[peer_id]:
-                            rating_val = user_matrix[peer_id][sid]
-                            collab_weighted_sum += sim * (rating_val / 5.0)
+                            preference = user_matrix[peer_id][sid]
+                            collab_weighted_sum += sim * ((preference + 1.0) / 2.0)
                             collab_sim_sum += sim
 
                     m = 0.8  # Pseudo-interaction weight for shrinkage to neutral baseline
@@ -365,7 +374,7 @@ class HybridRecommendationEngine:
                         reasons.append(f"Located in your preferred city ({store['city']})")
 
                 if has_collaborative_signal and collab_score >= 0.60:
-                    reasons.append("Shoppers with similar vintage taste loved this")
+                    reasons.append("Similar shoppers showed interest in this")
 
                 if avg_r >= 4.5:
                     reasons.append(f"Highly rated boutique ({avg_r:.1f} stars)")
@@ -405,8 +414,19 @@ class HybridRecommendationEngine:
 
     def update_user_preferences(self, user_id, preferred_categories=None, preferred_city=None, lat=None, lng=None):
         """Update explicit user preference profile in the development database."""
+        # Validate the complete pair before any database access, even when clearing a city.
+        if (lat is None) != (lng is None):
+            raise ValueError("Latitude and longitude must be supplied together.")
+        has_coordinates = lat is not None
+        if has_coordinates:
+            lat, lng = float(lat), float(lng)
+            if not (math.isfinite(lat) and math.isfinite(lng)
+                    and -90 <= lat <= 90 and -180 <= lng <= 180):
+                raise ValueError("Coordinates must be finite and within valid ranges.")
+        city = preferred_city.strip() if preferred_city is not None else None
         conn = None
         cursor = None
+        operation_failed = False
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -424,11 +444,15 @@ class HybridRecommendationEngine:
 
             if preferred_city is not None:
                 updates.append("preferred_city = %s")
-                params.append(preferred_city.strip())
+                params.append(city)
 
-            if lat is not None and lng is not None:
+            if city is not None and (city == '' or not has_coordinates):
+                # A city-only submission invalidates any previous coordinate pair.
                 updates.append("preferred_lat = %s, preferred_lng = %s")
-                params.extend([float(lat), float(lng)])
+                params.extend([None, None])
+            elif has_coordinates:
+                updates.append("preferred_lat = %s, preferred_lng = %s")
+                params.extend([lat, lng])
 
             if not updates:
                 return False
@@ -438,8 +462,23 @@ class HybridRecommendationEngine:
             cursor.execute(query, tuple(params))
             conn.commit()
             return cursor.rowcount >= 0
+        except Exception:
+            operation_failed = True
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    # Preserve the original operation error if rollback also fails.
+                    pass
+            raise
         finally:
-            if cursor:
-                cursor.close()
-            if conn and conn.is_connected():
-                conn.close()
+            cleanup_error = None
+            for resource in (cursor, conn):
+                if resource is not None:
+                    try:
+                        resource.close()
+                    except Exception as error:
+                        if cleanup_error is None:
+                            cleanup_error = error
+            if cleanup_error is not None and not operation_failed:
+                raise cleanup_error

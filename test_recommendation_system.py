@@ -11,8 +11,14 @@ Covers:
 8. Unauthenticated access control and dashboard preservation.
 """
 import unittest
-from app import app, get_db_connection
-from recommendation_engine import HybridRecommendationEngine
+import math
+from unittest.mock import MagicMock, call, patch
+
+# app.py connects and creates the upload directory at import time.
+# Isolate those side effects; integration tests below still require an explicit DB run.
+with patch('mysql.connector.connect'), patch('os.makedirs'):
+    from app import app, get_db_connection
+from recommendation_engine import HybridRecommendationEngine, resolve_preference
 
 class TestRecommendationSystem(unittest.TestCase):
     @classmethod
@@ -339,6 +345,466 @@ class TestRecommendationSystem(unittest.TestCase):
         recs = self.engine.get_recommendations(user_id=user_id, limit=6)
         self.assertGreater(len(recs), 0)
         self.assertEqual(recs[0]['store_id'], 5, "City normalization should safely resolve '  mAlLaPpaLLy  ' to Mallappally and rank Store 5 #1")
+
+class TestLocationPreferencesOffline(unittest.TestCase):
+    """Run this class alone: all persistence is an in-memory mock."""
+
+    def setUp(self):
+        guard = patch('mysql.connector.connect', side_effect=AssertionError("Real DB access forbidden"))
+        guard.start()
+        self.addCleanup(guard.stop)
+        self.engine = HybridRecommendationEngine()
+        self.connection = MagicMock()
+        self.cursor = self.connection.cursor.return_value
+        self.cursor.rowcount = 1
+        self.favorites = []
+        self.reviews = []
+        self.profile = {
+            'user_id': 901, 'preferred_categories': '71',
+            'preferred_city': 'Old City', 'preferred_lat': 9.59, 'preferred_lng': 76.52,
+        }
+        self.stores = [
+            dict(store_id=sid, store_name='Vintage denim', description='Denim jackets',
+                 category_id=71, category_name='Clothing', city=city,
+                 latitude=lat, longitude=lng, avg_rating=0, review_count=0,
+                 status='approved')
+            for sid, city, lat, lng in [
+                (801, 'Old City', 9.59, 76.52),
+                (802, 'New City', 12.97, 77.59),
+            ]
+        ]
+        self.cursor.execute.side_effect = self.execute_fake
+        connection_patch = patch.object(self.engine, '_get_connection', return_value=self.connection)
+        self.get_connection = connection_patch.start()
+        self.addCleanup(connection_patch.stop)
+
+    def execute_fake(self, query, params=None):
+        """Record updates in memory and supply fabricated recommendation inputs."""
+        if query.startswith('UPDATE users SET '):
+            assignments = query.split(' SET ', 1)[1].split(' WHERE ', 1)[0].split(', ')
+            for assignment, value in zip(assignments, params[:-1]):
+                self.profile[assignment.split(' = ')[0]] = value
+        elif 'FROM users WHERE' in query:
+            self.cursor.fetchone.return_value = dict(self.profile)
+        elif 'FROM stores s' in query:
+            self.cursor.fetchall.return_value = [dict(s) for s in self.stores]
+        elif 'FROM favorites' in query:
+            self.cursor.fetchall.return_value = [
+                dict(row) for row in self.favorites
+                if params is None or row['user_id'] == params[0]]
+        elif 'FROM reviews' in query:
+            self.cursor.fetchall.return_value = [
+                dict(row) for row in self.reviews
+                if params is None or row['user_id'] == params[0]]
+        else:
+            self.cursor.fetchall.return_value = []
+
+    def assert_location_cleared(self, city):
+        self.assertEqual(self.profile['preferred_city'], city)
+        self.assertIsNone(self.profile['preferred_lat'])
+        self.assertIsNone(self.profile['preferred_lng'])
+        self.cursor.execute.assert_called_once()
+        query, params = self.cursor.execute.call_args.args
+        self.assertIn('preferred_lat = %s, preferred_lng = %s', query)
+        self.assertEqual(params[-3:], (None, None, 901))
+        self.connection.commit.assert_called_once()
+
+    def test_city_submissions_clear_coordinates_atomically(self):
+        for submitted, expected in [
+            (' New City ', 'New City'), ('', ''), ('   ', ''), ('Old City', 'Old City'),
+        ]:
+            with self.subTest(city=submitted):
+                self.cursor.reset_mock()
+                self.connection.commit.reset_mock()
+                self.profile.update(preferred_city='Old City', preferred_lat=9.59, preferred_lng=76.52)
+                self.engine.update_user_preferences(901, preferred_city=submitted)
+                self.assert_location_cleared(expected)
+
+    def test_categories_and_city_share_one_update(self):
+        self.engine.update_user_preferences(
+            901, preferred_categories=['72'], preferred_city='New City')
+        self.assertEqual(self.profile['preferred_categories'], '72')
+        self.assert_location_cleared('New City')
+
+    def test_category_only_preserves_location(self):
+        before = dict(self.profile)
+        self.engine.update_user_preferences(901, preferred_categories=['72', 'invalid'])
+        self.assertEqual(self.profile['preferred_categories'], '72')
+        for field in ('preferred_city', 'preferred_lat', 'preferred_lng'):
+            self.assertEqual(self.profile[field], before[field])
+        query, params = self.cursor.execute.call_args.args
+        self.assertNotIn('preferred_city', query)
+        self.assertNotIn('preferred_lat', query)
+        self.assertEqual(params, ('72', 901))
+
+    def test_omitted_preferences_do_not_update(self):
+        before = dict(self.profile)
+        self.assertFalse(self.engine.update_user_preferences(901))
+        self.assertEqual(self.profile, before)
+        self.cursor.execute.assert_not_called()
+        self.connection.commit.assert_not_called()
+
+    def test_valid_coordinate_pairs(self):
+        for city, lat, lng in [(None, '12.97', '77.59'), ('New City', 0, 0),
+                               (None, -90, -180), (None, 90, 180)]:
+            with self.subTest(city=city, lat=lat, lng=lng):
+                self.connection.reset_mock()
+                previous_city = self.profile['preferred_city']
+                self.assertTrue(self.engine.update_user_preferences(
+                    901, preferred_city=city, lat=lat, lng=lng))
+                self.assertEqual(self.profile['preferred_lat'], float(lat))
+                self.assertEqual(self.profile['preferred_lng'], float(lng))
+                self.assertEqual(self.profile['preferred_city'],
+                                 previous_city if city is None else city)
+                assignments = 'preferred_lat = %s, preferred_lng = %s'
+                params = (float(lat), float(lng), 901)
+                if city is not None:
+                    assignments = 'preferred_city = %s, ' + assignments
+                    params = (city,) + params
+                self.assertEqual(self.connection.mock_calls, [
+                    call.cursor(),
+                    call.cursor().execute(
+                        f'UPDATE users SET {assignments} WHERE user_id = %s', params),
+                    call.commit(),
+                    call.cursor().close(),
+                    call.close(),
+                ])
+                self.connection.rollback.assert_not_called()
+
+    def test_invalid_coordinates_rejected_before_connection(self):
+        pairs = [(1, None), (None, 1), (float('nan'), 1), (1, float('nan')),
+                 (float('inf'), 1), (1, float('-inf')),
+                 (90.01, 1), (-90.01, 1), (1, 180.01), (1, -180.01), ('bad', 1)]
+        for lat, lng in pairs:
+            with self.subTest(lat=lat, lng=lng):
+                with self.assertRaises(ValueError):
+                    self.engine.update_user_preferences(901, lat=lat, lng=lng)
+        self.get_connection.assert_not_called()
+        self.cursor.execute.assert_not_called()
+
+    def test_blank_city_overrides_valid_coordinates(self):
+        for city in ('', '  '):
+            with self.subTest(city=city):
+                self.cursor.reset_mock()
+                self.connection.commit.reset_mock()
+                self.engine.update_user_preferences(901, preferred_city=city, lat=12.97, lng=77.59)
+                self.assert_location_cleared('')
+
+    def test_blank_city_still_validates_coordinates(self):
+        with self.assertRaises(ValueError):
+            self.engine.update_user_preferences(901, preferred_city='', lat=float('inf'), lng=0)
+        self.get_connection.assert_not_called()
+
+    def test_city_change_moves_ranking_to_new_city(self):
+        self.assertEqual(self.engine.get_recommendations(901)[0]['city'], 'Old City')
+        self.engine.update_user_preferences(901, preferred_city='New City')
+        recs = self.engine.get_recommendations(901)
+        self.assertEqual(recs[0]['city'], 'New City')
+        self.assertEqual(recs[0]['distance_km'], 0)
+        self.assertGreater(recs[1]['distance_km'], 25)
+        self.assertIsNone(self.profile['preferred_lat'])  # Lookup is not persisted.
+        self.assertIsNone(self.profile['preferred_lng'])
+
+    def test_clear_and_unknown_city_remove_old_ranking_advantage(self):
+        for city in ('', 'Unknown City'):
+            with self.subTest(city=city):
+                self.profile.update(preferred_city='Old City', preferred_lat=9.59, preferred_lng=76.52)
+                self.assertEqual(self.engine.get_recommendations(901)[0]['city'], 'Old City')
+                self.engine.update_user_preferences(901, preferred_city=city)
+                recs = self.engine.get_recommendations(901)
+                self.assertEqual(recs[0]['match_score'], recs[1]['match_score'])
+                for rec in recs:
+                    self.assertIsNone(rec['distance_km'])
+                    self.assertFalse(any('Nearby' in reason or 'preferred city' in reason
+                                         for reason in rec['all_reasons']))
+
+    def test_route_city_values(self):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session['user_id'] = 901
+        with patch('app.HybridRecommendationEngine') as engine_class:
+            for data, expected in [
+                ({'preferred_city': ' New City '}, 'New City'),
+                ({'preferred_city': ''}, ''),
+                ({'preferred_city': '  '}, ''),
+                ({}, None),
+            ]:
+                with self.subTest(data=data):
+                    engine_class.reset_mock()
+                    response = client.post('/update-preferences', data=data)
+                    self.assertEqual(response.status_code, 302)
+                    self.assertTrue(response.location.endswith('/user-dashboard#recommendations-section'))
+                    engine_class.return_value.update_user_preferences.assert_called_once_with(
+                        901, preferred_categories=[], preferred_city=expected)
+
+    def test_route_nonempty_categories_and_changed_city(self):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session['user_id'] = 901
+        with patch('app.HybridRecommendationEngine') as engine_class:
+            response = client.post('/update-preferences', data={
+                'preferred_categories': ['71', '72'],
+                'preferred_city': ' New City ',
+            })
+            self.assertEqual(response.status_code, 302)
+            engine_class.return_value.update_user_preferences.assert_called_once_with(
+                901, preferred_categories=['71', '72'], preferred_city='New City')
+
+    def assert_failure_calls(self, commit_attempted, rollback_attempted):
+        expected = [
+            call.cursor(),
+            call.cursor().execute(
+                'UPDATE users SET preferred_city = %s, preferred_lat = %s, '
+                'preferred_lng = %s WHERE user_id = %s',
+                ('New City', None, None, 901)),
+        ]
+        if commit_attempted:
+            expected.append(call.commit())
+        if rollback_attempted:
+            expected.append(call.rollback())
+        expected.extend([call.cursor().close(), call.close()])
+        self.assertEqual(self.connection.mock_calls, expected)
+
+    def test_execution_failure_rolls_back_and_closes(self):
+        error = RuntimeError('mock execution failure')
+        self.cursor.execute.side_effect = error
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.update_user_preferences(901, preferred_city='New City')
+        self.assertIs(caught.exception, error)
+        self.assert_failure_calls(commit_attempted=False, rollback_attempted=True)
+
+    def test_commit_failure_rolls_back_and_closes(self):
+        error = RuntimeError('mock commit failure')
+        self.connection.commit.side_effect = error
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.update_user_preferences(901, preferred_city='New City')
+        self.assertIs(caught.exception, error)
+        self.assert_failure_calls(commit_attempted=True, rollback_attempted=True)
+
+    def test_cursor_close_failure_still_closes_connection(self):
+        error = RuntimeError('mock cursor close failure')
+        self.cursor.close.side_effect = error
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.update_user_preferences(901, preferred_city='New City')
+        self.assertIs(caught.exception, error)
+        self.assert_failure_calls(commit_attempted=True, rollback_attempted=False)
+
+    def test_connection_close_failure_propagates(self):
+        error = RuntimeError('mock connection close failure')
+        self.connection.close.side_effect = error
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.update_user_preferences(901, preferred_city='New City')
+        self.assertIs(caught.exception, error)
+        self.assert_failure_calls(commit_attempted=True, rollback_attempted=False)
+
+    def test_both_close_failures_preserve_first_cleanup_error(self):
+        error = RuntimeError('mock cursor close failure')
+        self.cursor.close.side_effect = error
+        self.connection.close.side_effect = RuntimeError('mock connection close failure')
+        with self.assertRaises(RuntimeError) as caught:
+            self.engine.update_user_preferences(901, preferred_city='New City')
+        self.assertIs(caught.exception, error)
+        self.assert_failure_calls(commit_attempted=True, rollback_attempted=False)
+
+    def test_secondary_failures_preserve_operation_error_and_attempt_cleanup(self):
+        for stage in ('execute', 'commit'):
+            with self.subTest(stage=stage):
+                self.connection.reset_mock(side_effect=True)
+                error = RuntimeError('mock operation failure')
+                self.cursor.execute.side_effect = error if stage == 'execute' else self.execute_fake
+                self.connection.commit.side_effect = error if stage == 'commit' else None
+                self.connection.rollback.side_effect = RuntimeError('mock rollback failure')
+                self.cursor.close.side_effect = RuntimeError('mock cursor close failure')
+                self.connection.close.side_effect = RuntimeError('mock connection close failure')
+                with self.assertRaises(RuntimeError) as caught:
+                    self.engine.update_user_preferences(901, preferred_city='New City')
+                self.assertIs(caught.exception, error)
+                self.assert_failure_calls(commit_attempted=stage == 'commit', rollback_attempted=True)
+
+    def prepare_signal_records(self):
+        """Equal candidates without location/quality differences or explicit tastes."""
+        self.profile.update(preferred_categories='', preferred_city='',
+                            preferred_lat=None, preferred_lng=None)
+        self.stores = [
+            dict(store_id=sid, store_name='Denim', description='Jackets',
+                 category_id=cat, category_name='Clothing',
+                 city='', latitude=None, longitude=None, avg_rating=0,
+                 review_count=0, status='approved')
+            for sid, cat in [(801, 71), (802, 72), (803, 73)]
+        ]
+        self.favorites = []
+        self.reviews = []
+
+    def add_review(self, uid, sid, rating):
+        self.reviews.append(dict(user_id=uid, store_id=sid, rating=rating))
+
+    def signal_recommendations(self):
+        recs = self.engine.get_recommendations(901)
+        self.assertEqual(len(recs), len(self.stores))
+        return {rec['store_id']: rec for rec in recs}
+
+    def test_signed_preference_semantics(self):
+        self.assertIsNone(resolve_preference(False))
+        self.assertEqual(resolve_preference(True), 0.5)
+        for rating, expected in [(1, -1), (2, -0.5), (3, 0), (4, 0.5), (5, 1)]:
+            for saved in (False, True):
+                with self.subTest(rating=rating, saved=saved):
+                    self.assertEqual(resolve_preference(saved, rating), expected)
+
+    def test_all_ratings_override_favorites_in_content_pipeline(self):
+        for rating in range(1, 6):
+            for saved in (False, True):
+                with self.subTest(rating=rating, saved=saved):
+                    self.prepare_signal_records()
+                    self.add_review(901, 801, rating)
+                    if saved:
+                        self.favorites.append(dict(user_id=901, store_id=801))
+                    recs = self.signal_recommendations()
+                    positive = rating >= 4
+                    self.assertEqual(recs[801]['is_favorited'], saved)
+                    self.assertEqual(
+                        'Based on your interest in Clothing' in recs[801]['all_reasons'],
+                        positive)
+                    # All candidates have the same tokens but different categories.
+                    # This also detects leaking neutral/negative name or description tokens.
+                    expected_own = 0.7 * (0.75 * (0.85 if positive else 0.35)
+                                          + 0.25 * (1 if positive else 0.1)) + 0.3 * 0.5
+                    expected_other = 0.7 * (0.75 * 0.35
+                                            + 0.25 * (1 if positive else 0.1)) + 0.3 * 0.5
+                    self.assertEqual(recs[801]['match_score'], round(expected_own, 4))
+                    self.assertEqual(recs[802]['match_score'], round(expected_other, 4))
+
+    def test_favorite_only_establishes_content_interest(self):
+        self.prepare_signal_records()
+        self.favorites.append(dict(user_id=901, store_id=801))
+        recs = self.signal_recommendations()
+        self.assertIn('Based on your interest in Clothing', recs[801]['all_reasons'])
+        self.assertGreater(recs[801]['match_score'], recs[802]['match_score'])
+
+    def test_negative_review_preserves_explicit_category_and_other_positive_interest(self):
+        self.prepare_signal_records()
+        self.profile['preferred_categories'] = '71'
+        self.add_review(901, 801, 1)
+        recs = self.signal_recommendations()
+        self.assertIn('Matches your taste in Clothing', recs[801]['all_reasons'])
+        self.profile['preferred_categories'] = ''
+        self.stores[1]['category_id'] = 71
+        self.add_review(901, 802, 5)
+        recs = self.signal_recommendations()
+        self.assertIn('Based on your interest in Clothing', recs[801]['all_reasons'])
+        self.assertIn(801, recs)  # No direct disliked-store suppression.
+
+    def test_signed_similarity_opposition_and_insufficient_overlap(self):
+        for target, peer in [
+            ({801: -1}, {801: 1}),
+            ({801: 1}, {801: 1}),
+            ({801: 1, 802: -1}, {801: -1, 802: 1}),
+            ({801: 1, 802: 0}, {801: 1, 802: 1}),
+            ({801: 1, 802: 1}, {801: 1, 802: 0}),
+            ({801: 1, 802: 1}, {801: 1, 803: 1}),
+            ({801: 0, 802: 0}, {801: 0, 802: 0}),
+            ({}, {801: 1, 802: 1}),
+        ]:
+            with self.subTest(target=target, peer=peer):
+                self.assertEqual(self.engine._peer_similarity(target, peer), 0)
+
+    def test_similarity_overlap_shrinkage_and_full_vector_norms(self):
+        for count in (2, 3, 5):
+            aligned = {sid: (-1 if sid % 2 else 0.5) for sid in range(count)}
+            with self.subTest(count=count):
+                self.assertAlmostEqual(
+                    self.engine._peer_similarity(aligned, aligned), count / (count + 2))
+        self.assertAlmostEqual(
+            self.engine._peer_similarity({801: 1, 802: 1}, {801: 1, 802: 1, 803: 1}),
+            (2 / math.sqrt(6)) * 0.5)
+        with patch.object(self.engine, 'MIN_SHARED_PREFERENCES', 3):
+            self.assertEqual(self.engine._peer_similarity({1: 1, 2: 1}, {1: 1, 2: 1}), 0)
+        with patch.object(self.engine, 'SIMILARITY_SHRINKAGE', 4):
+            self.assertAlmostEqual(
+                self.engine._peer_similarity({1: 1, 2: 1}, {1: 1, 2: 1}), 2 / 6)
+
+    def test_candidate_feedback_mapping_and_review_precedence(self):
+        for rating, preference in [(None, None), (1, -1), (2, -0.5), (3, 0), (4, 0.5), (5, 1)]:
+            for saved in (False, True):
+                with self.subTest(rating=rating, saved=saved):
+                    self.prepare_signal_records()
+                    # Shared dislikes establish aligned peers without content interests.
+                    for uid in (901, 902):
+                        for sid in (801, 802):
+                            self.add_review(uid, sid, 1)
+                    if saved:
+                        self.favorites.append(dict(user_id=902, store_id=803))
+                    if rating is not None:
+                        self.add_review(902, 803, rating)
+                    resolved = preference if rating is not None else (0.5 if saved else None)
+                    if resolved is None:
+                        collaborative = 0.5
+                    else:
+                        similarity = (2 / math.sqrt(2 * (2 + resolved ** 2))) * 0.5
+                        collaborative = (similarity * ((resolved + 1) / 2) + 0.4) / (similarity + 0.8)
+                    rec = self.signal_recommendations()[803]
+                    expected = 0.45 * 0.2875 + 0.4 * collaborative + 0.15 * 0.5
+                    self.assertEqual(rec['match_score'], round(expected, 4))
+                    self.assertEqual('Similar shoppers showed interest in this' in rec['all_reasons'],
+                                     collaborative >= 0.6)
+                    self.assertFalse(any('loved' in reason.lower() for reason in rec['all_reasons']))
+
+    def test_missing_peer_feedback_does_not_dilute_candidate_score(self):
+        self.prepare_signal_records()
+        for uid in (901, 902, 903):
+            for sid in (801, 802):
+                self.add_review(uid, sid, 1)
+        self.add_review(902, 803, 5)
+        missing_score = self.signal_recommendations()[803]['match_score']
+        similarity = 1 / math.sqrt(6)
+        collaborative = (similarity + 0.4) / (similarity + 0.8)
+        self.assertEqual(missing_score, round(0.45 * 0.2875 + 0.4 * collaborative + 0.075, 4))
+        self.add_review(903, 803, 3)
+        neutral_score = self.signal_recommendations()[803]['match_score']
+        collaborative = (similarity + 0.5 * 0.5 + 0.4) / (similarity + 0.5 + 0.8)
+        self.assertEqual(neutral_score, round(0.45 * 0.2875 + 0.4 * collaborative + 0.075, 4))
+        self.assertLess(neutral_score, missing_score)
+
+    def test_cold_sparse_neutral_and_opposing_histories_use_fallback(self):
+        for history, peer in [
+            ([], [(801, 5), (802, 5)]),
+            ([(801, 1)], [(801, 1)]),
+            ([(801, 3), (802, 3)], [(801, 3), (802, 3)]),
+            ([(801, 1), (802, 3)], [(801, 1), (802, 1)]),
+            ([(801, 1), (802, 2)], [(801, 5), (802, 4)]),
+        ]:
+            with self.subTest(history=history, peer=peer):
+                self.prepare_signal_records()
+                for sid, rating in history:
+                    self.add_review(901, sid, rating)
+                for sid, rating in peer:
+                    self.add_review(902, sid, rating)
+                self.add_review(902, 803, 5)
+                for rec in self.signal_recommendations().values():
+                    self.assertEqual(rec['match_score'], round(0.7 * 0.2875 + 0.3 * 0.5, 4))
+                    self.assertNotIn('Similar shoppers showed interest in this', rec['all_reasons'])
+
+    def test_positive_shared_favorites_enable_collaborative_scoring(self):
+        self.prepare_signal_records()
+        for uid in (901, 902):
+            for sid in (801, 802):
+                self.favorites.append(dict(user_id=uid, store_id=sid))
+        self.add_review(902, 803, 5)
+        rec = self.signal_recommendations()[803]
+        similarity = (0.5 / math.sqrt(0.5 * 1.5)) * 0.5
+        collaborative = (similarity + 0.4) / (similarity + 0.8)
+        # Positive history supplies matching text, but candidate category is unselected.
+        content = 0.75 * 0.35 + 0.25
+        self.assertEqual(rec['match_score'], round(0.45 * content + 0.4 * collaborative + 0.075, 4))
+        self.assertIn('Similar shoppers showed interest in this', rec['all_reasons'])
+
+    def test_unauthenticated_route_does_not_save(self):
+        with patch('app.HybridRecommendationEngine') as engine_class:
+            response = app.test_client().post('/update-preferences', data={'preferred_city': ''})
+            self.assertEqual(response.status_code, 302)
+            self.assertIn('/login', response.location)
+            engine_class.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

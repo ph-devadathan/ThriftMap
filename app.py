@@ -999,7 +999,9 @@ def update_preferences():
 
     user_id = session.get('user_id')
     selected_cats = request.form.getlist('preferred_categories')
-    city = request.form.get('preferred_city', '').strip()
+    city = request.form.get('preferred_city')
+    if city is not None:
+        city = city.strip()
 
     try:
         engine = HybridRecommendationEngine()
