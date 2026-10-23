@@ -24,16 +24,18 @@ class TestSavedStoresFeature(unittest.TestCase):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            # Baseline count
-            cursor.execute("SELECT COUNT(*) AS cnt FROM favorites")
-            cls.baseline_fav_count = cursor.fetchone()['cnt']
+            # Baseline favorites to protect
+            cursor.execute("SELECT favorite_id, user_id, store_id FROM favorites")
+            fav_rows = cursor.fetchall()
+            cls.baseline_fav_ids = {r['favorite_id'] for r in fav_rows}
+            existing_fav_pairs = {(r['user_id'], r['store_id']) for r in fav_rows}
 
-            # Find two approved stores
-            cursor.execute("SELECT store_id, store_name, city, image FROM stores WHERE status = 'approved' ORDER BY store_id ASC LIMIT 2")
+            # Find approved stores
+            cursor.execute("SELECT store_id, store_name, city, image FROM stores WHERE status = 'approved' ORDER BY store_id ASC")
             stores = cursor.fetchall()
-            assert len(stores) >= 1, "At least one approved store must exist in DB for testing"
+            assert len(stores) >= 2, "At least two approved stores must exist in DB for testing"
             cls.test_store_1 = stores[0]
-            cls.test_store_2 = stores[1] if len(stores) > 1 else stores[0]
+            cls.test_store_2 = stores[1]
 
             # Fetch two distinct users
             cursor.execute("SELECT user_id, full_name, email, role FROM users WHERE role = 'user' ORDER BY user_id ASC")
@@ -58,8 +60,10 @@ class TestSavedStoresFeature(unittest.TestCase):
                 cursor.execute(f"DELETE FROM favorites WHERE favorite_id IN ({format_strings})", tuple(cls.created_fav_ids))
                 conn.commit()
 
-            # Clean any remaining test entries created during tests
-            cursor.execute("DELETE FROM favorites WHERE user_id IN (%s, %s)", (cls.user1['user_id'], cls.user2['user_id']))
+            # Clean any test entries created during tests, strictly preserving baseline favorites
+            if cls.baseline_fav_ids:
+                fmt = ','.join(['%s'] * len(cls.baseline_fav_ids))
+                cursor.execute(f"DELETE FROM favorites WHERE favorite_id NOT IN ({fmt})", tuple(cls.baseline_fav_ids))
             conn.commit()
         finally:
             cursor.close()
@@ -114,7 +118,11 @@ class TestSavedStoresFeature(unittest.TestCase):
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("DELETE FROM favorites WHERE user_id = %s", (self.user1['user_id'],))
+            if self.baseline_fav_ids:
+                fmt = ','.join(['%s'] * len(self.baseline_fav_ids))
+                cursor.execute(f"DELETE FROM favorites WHERE user_id = %s AND favorite_id NOT IN ({fmt})", (self.user1['user_id'], *self.baseline_fav_ids))
+            else:
+                cursor.execute("DELETE FROM favorites WHERE user_id = %s", (self.user1['user_id'],))
             conn.commit()
         finally:
             cursor.close()
