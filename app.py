@@ -185,7 +185,6 @@ def home():
               AND s.latitude BETWEEN %s AND %s
               AND s.longitude BETWEEN %s AND %s
             ORDER BY s.created_at DESC
-            LIMIT 6
         """
         cursor.execute(query, (INDIA_LAT_MIN, INDIA_LAT_MAX, INDIA_LNG_MIN, INDIA_LNG_MAX))
         raw_featured = cursor.fetchall()
