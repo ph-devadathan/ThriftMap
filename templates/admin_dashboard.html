@@ -87,6 +87,27 @@
             color: var(--thrift-terracotta);
         }
 
+        .nav-link-custom {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--thrift-text-muted);
+            padding: 0.45rem 0.9rem;
+            border-radius: 50rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link-custom:hover {
+            color: var(--thrift-forest-primary);
+            background: var(--thrift-forest-wash);
+        }
+
+        .nav-link-custom.active {
+            color: var(--thrift-forest-dark);
+            background: var(--thrift-forest-subtle);
+            font-weight: 700;
+        }
+
         /* Hero Welcome Banner */
         .dashboard-hero {
             background: linear-gradient(145deg, #0b1d15 0%, #15291f 65%, #234737 100%);
@@ -303,6 +324,22 @@
                 <span>Thrift<span class="brand-accent">Map</span></span>
             </a>
 
+            <!-- Admin Navigation Links -->
+            <div class="d-none d-lg-flex align-items-center gap-1 ms-4">
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link-custom active" id="nav-link-dashboard">
+                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="nav-link-custom" id="nav-link-users">
+                    <i class="bi bi-people-fill me-1"></i> Manage Users
+                </a>
+                <a href="{{ url_for('admin_stores') }}" class="nav-link-custom" id="nav-link-stores">
+                    <i class="bi bi-buildings me-1"></i> Manage Stores
+                </a>
+                <a href="{{ url_for('admin_reports') }}" class="nav-link-custom" id="nav-link-reports">
+                    <i class="bi bi-graph-up-arrow me-1"></i> View Reports
+                </a>
+            </div>
+
             <div class="ms-auto d-flex align-items-center gap-2">
                 <span class="badge bg-dark-subtle text-dark border border-secondary-subtle rounded-pill px-3 py-2 d-none d-sm-inline-flex align-items-center gap-1">
                     <i class="bi bi-shield-lock-fill"></i>
@@ -448,7 +485,7 @@
             <div class="row g-3 g-md-4 mb-4">
                 <!-- 1. Manage Users -->
                 <div class="col-md-6 col-lg-3">
-                    <a href="#manage-users" class="menu-card" id="menu-manage-users">
+                    <a href="{{ url_for('admin_users') }}" class="menu-card" id="menu-manage-users">
                         <div>
                             <div class="menu-icon-box icon-box-primary">
                                 <i class="bi bi-people"></i>
@@ -476,7 +513,7 @@
 
                 <!-- 3. View Reports -->
                 <div class="col-md-6 col-lg-3">
-                    <a href="#reports" class="menu-card" id="menu-view-reports">
+                    <a href="{{ url_for('admin_reports') }}" class="menu-card" id="menu-view-reports">
                         <div>
                             <div class="menu-icon-box icon-box-terracotta">
                                 <i class="bi bi-graph-up-arrow"></i>

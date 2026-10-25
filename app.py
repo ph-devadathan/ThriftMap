@@ -2,7 +2,8 @@ import os
 import time
 import uuid
 import re
-from flask import Flask, render_template, request, redirect, url_for, flash, session, abort
+import math
+from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, jsonify
 from werkzeug.utils import secure_filename
 import mysql.connector
 from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
@@ -120,10 +121,31 @@ def get_db_connection():
         database=DB_NAME
     )
 
+def ensure_schema_compatibility():
+    """Ensure database has required columns without modifying existing records."""
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SHOW COLUMNS FROM users LIKE 'status'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE users ADD COLUMN status ENUM('active', 'inactive') NOT NULL DEFAULT 'active' AFTER role")
+            conn.commit()
+            print("Added 'status' column to users table.")
+    except Exception as e:
+        print(f"Schema compatibility check: {e}")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
 # Test database connection
 try:
     db = get_db_connection()
     print("Database Connected Successfully")
+    ensure_schema_compatibility()
 except Exception as e:
     print("Database Connection Failed")
     print(e)
@@ -848,7 +870,7 @@ def login():
         try:
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            query = "SELECT user_id, full_name, email, password, role FROM users WHERE email = %s"
+            query = "SELECT user_id, full_name, email, password, role, status FROM users WHERE email = %s"
             cursor.execute(query, (email,))
             user = cursor.fetchone()
 
@@ -861,6 +883,11 @@ def login():
             if user['password'] != password:
                 flash("Incorrect password.", 'danger')
                 return render_template('login.html', email=email), 400
+
+            # Check account status
+            if user.get('status') == 'inactive':
+                flash("Your account has been deactivated. Please contact an administrator.", 'danger')
+                return render_template('login.html', email=email), 403
 
             # Set session variables
             session['user_id'] = user['user_id']
@@ -2298,6 +2325,875 @@ def admin_reject_store(store_id):
             cursor.close()
         if conn and conn.is_connected():
             conn.close()
+
+@app.route('/admin/users')
+def admin_users():
+    """Admin route to list and filter registered users with role counts and pagination."""
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        flash("Access denied. Only administrators can access this page.", 'danger')
+        if user_role == 'user':
+            return redirect(url_for('user_dashboard'))
+        elif user_role == 'owner':
+            return redirect(url_for('owner_dashboard'))
+        return redirect(url_for('login'))
+
+    search = request.args.get('search', '').strip()
+    role_filter = request.args.get('role', '').strip().lower()
+    status_filter = request.args.get('status', '').strip().lower()
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+
+    if role_filter not in ['user', 'owner', 'admin']:
+        role_filter = ''
+    if status_filter not in ['active', 'inactive']:
+        status_filter = ''
+
+    conn = None
+    cursor = None
+    users = []
+    counts = {
+        'total': 0,
+        'shopper': 0,
+        'owner': 0,
+        'admin': 0,
+        'active': 0,
+        'inactive': 0
+    }
+    total_count = 0
+    total_pages = 1
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Overview counts across all users
+        cursor.execute("""
+            SELECT 
+                COUNT(*) AS total_users,
+                SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS shopper_count,
+                SUM(CASE WHEN role = 'owner' THEN 1 ELSE 0 END) AS owner_count,
+                SUM(CASE WHEN role = 'admin' THEN 1 ELSE 0 END) AS admin_count,
+                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive_count
+            FROM users
+        """)
+        summary_row = cursor.fetchone()
+        if summary_row:
+            counts['total'] = summary_row.get('total_users') or 0
+            counts['shopper'] = int(summary_row.get('shopper_count') or 0)
+            counts['owner'] = int(summary_row.get('owner_count') or 0)
+            counts['admin'] = int(summary_row.get('admin_count') or 0)
+            counts['active'] = int(summary_row.get('active_count') or 0)
+            counts['inactive'] = int(summary_row.get('inactive_count') or 0)
+
+        # Build dynamic WHERE clause
+        conditions = []
+        params = []
+        if search:
+            conditions.append("(u.full_name LIKE %s OR u.email LIKE %s)")
+            params.extend([f"%{search}%", f"%{search}%"])
+        if role_filter:
+            conditions.append("u.role = %s")
+            params.append(role_filter)
+        if status_filter:
+            conditions.append("u.status = %s")
+            params.append(status_filter)
+
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+        # Count filtered rows
+        count_query = f"SELECT COUNT(*) AS total FROM users u {where_clause}"
+        cursor.execute(count_query, tuple(params))
+        total_count_row = cursor.fetchone()
+        total_count = total_count_row['total'] if total_count_row else 0
+
+        total_pages = max(1, math.ceil(total_count / per_page))
+        if page < 1:
+            page = 1
+        elif page > total_pages:
+            page = total_pages
+        offset = (page - 1) * per_page
+
+        # Fetch users with store, review, and favorite counts
+        users_query = f"""
+            SELECT 
+                u.user_id,
+                u.full_name,
+                u.email,
+                u.role,
+                u.status,
+                u.created_at,
+                u.preferred_city,
+                u.preferred_categories,
+                (SELECT COUNT(*) FROM stores s WHERE s.owner_id = u.user_id) AS store_count,
+                (SELECT COUNT(*) FROM reviews r WHERE r.user_id = u.user_id) AS review_count,
+                (SELECT COUNT(*) FROM favorites f WHERE f.user_id = u.user_id) AS favorite_count
+            FROM users u
+            {where_clause}
+            ORDER BY u.created_at DESC, u.user_id DESC
+            LIMIT %s OFFSET %s
+        """
+        user_params = list(params) + [per_page, offset]
+        cursor.execute(users_query, tuple(user_params))
+        users = cursor.fetchall()
+
+    except mysql.connector.Error as e:
+        print(f"Database error in admin_users: {e}")
+        flash("Database error occurred while retrieving user list.", 'danger')
+    except Exception as e:
+        print(f"Unexpected error in admin_users: {e}")
+        flash("An unexpected error occurred. Please try again.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template(
+        'admin_users.html',
+        users=users,
+        search=search,
+        role_filter=role_filter,
+        status_filter=status_filter,
+        counts=counts,
+        page=page,
+        per_page=per_page,
+        total_count=total_count,
+        total_pages=total_pages,
+        full_name=session.get('full_name'),
+        role=user_role,
+        current_user_id=session.get('user_id')
+    )
+
+@app.route('/admin/user/<int:user_id>')
+def admin_user_details(user_id):
+    """Admin route to inspect a specific user's details, stores, reviews, and favorites."""
+    if 'user_id' not in session:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json':
+            return jsonify({'success': False, 'message': 'Authentication required'}), 401
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json':
+            return jsonify({'success': False, 'message': 'Access denied'}), 403
+        flash("Access denied. Only administrators can access this page.", 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    conn = None
+    cursor = None
+    user = None
+    stores = []
+    reviews = []
+    favorites = []
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT user_id, full_name, email, role, status, created_at,
+                   preferred_city, preferred_categories, preferred_lat, preferred_lng
+            FROM users WHERE user_id = %s
+        """, (user_id,))
+        user = cursor.fetchone()
+
+        if not user:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json':
+                return jsonify({'success': False, 'message': 'User not found'}), 404
+            flash("User not found.", 'danger')
+            return redirect(url_for('admin_users'))
+
+        # Fetch stores owned
+        cursor.execute("""
+            SELECT store_id, store_name, city, status, created_at
+            FROM stores WHERE owner_id = %s ORDER BY created_at DESC
+        """, (user_id,))
+        stores = cursor.fetchall()
+
+        # Fetch reviews written
+        cursor.execute("""
+            SELECT r.review_id, r.store_id, s.store_name, r.rating, r.comment, r.created_at
+            FROM reviews r
+            JOIN stores s ON r.store_id = s.store_id
+            WHERE r.user_id = %s ORDER BY r.created_at DESC
+        """, (user_id,))
+        reviews = cursor.fetchall()
+
+        # Fetch favorites saved
+        cursor.execute("""
+            SELECT f.favorite_id, f.store_id, s.store_name, s.city, f.created_at
+            FROM favorites f
+            JOIN stores s ON f.store_id = s.store_id
+            WHERE f.user_id = %s ORDER BY f.created_at DESC
+        """, (user_id,))
+        favorites = cursor.fetchall()
+
+    except Exception as e:
+        print(f"Error fetching user details: {e}")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json':
+            return jsonify({'success': False, 'message': 'Database error'}), 500
+        flash("Error fetching user details.", 'danger')
+        return redirect(url_for('admin_users'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.args.get('format') == 'json':
+        user_serialized = {
+            'user_id': user['user_id'],
+            'full_name': user['full_name'],
+            'email': user['email'],
+            'role': user['role'],
+            'status': user['status'],
+            'created_at': user['created_at'].strftime('%b %d, %Y %I:%M %p') if user.get('created_at') else 'N/A',
+            'preferred_city': user.get('preferred_city') or 'None set',
+            'preferred_categories': user.get('preferred_categories') or 'None set'
+        }
+        stores_serialized = [
+            {
+                'store_id': s['store_id'],
+                'store_name': s['store_name'],
+                'city': s['city'],
+                'status': s['status'],
+                'created_at': s['created_at'].strftime('%b %d, %Y') if s.get('created_at') else ''
+            }
+            for s in stores
+        ]
+        reviews_serialized = [
+            {
+                'review_id': r['review_id'],
+                'store_id': r['store_id'],
+                'store_name': r['store_name'],
+                'rating': r['rating'],
+                'comment': r['comment'],
+                'created_at': r['created_at'].strftime('%b %d, %Y') if r.get('created_at') else ''
+            }
+            for r in reviews
+        ]
+        favorites_serialized = [
+            {
+                'favorite_id': f['favorite_id'],
+                'store_id': f['store_id'],
+                'store_name': f['store_name'],
+                'city': f['city'],
+                'created_at': f['created_at'].strftime('%b %d, %Y') if f.get('created_at') else ''
+            }
+            for f in favorites
+        ]
+        return jsonify({
+            'success': True,
+            'user': user_serialized,
+            'stores': stores_serialized,
+            'reviews': reviews_serialized,
+            'favorites': favorites_serialized
+        })
+
+    return render_template(
+        'admin_user_details.html',
+        target_user=user,
+        stores=stores,
+        reviews=reviews,
+        favorites=favorites,
+        full_name=session.get('full_name'),
+        role=user_role,
+        current_user_id=session.get('user_id')
+    )
+
+@app.route('/admin/user/<int:user_id>/change-role', methods=['POST'])
+def admin_change_user_role(user_id):
+    """Admin route to safely change a user's role between Shopper and Store Owner."""
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        flash("Access denied. Only administrators can perform this action.", 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    # Security: Prevent admin from changing own role
+    if user_id == session.get('user_id'):
+        flash("Action blocked: You cannot change your own administrator role.", 'danger')
+        return redirect(url_for('admin_users'))
+
+    new_role = request.form.get('new_role', '').strip().lower()
+    if new_role not in ['user', 'owner']:
+        flash("Invalid role specified. Role can only be changed between Shopper and Store Owner.", 'danger')
+        return redirect(url_for('admin_users'))
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT user_id, full_name, email, role FROM users WHERE user_id = %s", (user_id,))
+        target_user = cursor.fetchone()
+        if not target_user:
+            flash("User not found.", 'danger')
+            return redirect(url_for('admin_users'))
+
+        # Security: Prevent demoting the last administrator account
+        if target_user['role'] == 'admin':
+            cursor.execute("SELECT COUNT(*) AS admin_count FROM users WHERE role = 'admin'")
+            admin_count = cursor.fetchone().get('admin_count', 0)
+            if admin_count <= 1:
+                flash("Action blocked: Cannot change role of the only administrator account.", 'danger')
+                return redirect(url_for('admin_users'))
+
+        cursor.execute("UPDATE users SET role = %s WHERE user_id = %s", (new_role, user_id))
+        conn.commit()
+
+        role_label = "Store Owner" if new_role == 'owner' else "Shopper"
+        flash(f"Role for user '{target_user['full_name']}' was successfully updated to {role_label}.", 'success')
+        return redirect(request.referrer or url_for('admin_users'))
+
+    except mysql.connector.Error as e:
+        print(f"Database error changing user role: {e}")
+        if conn:
+            conn.rollback()
+        flash("Database error occurred while changing user role.", 'danger')
+        return redirect(url_for('admin_users'))
+    except Exception as e:
+        print(f"Unexpected error changing user role: {e}")
+        if conn:
+            conn.rollback()
+        flash("An unexpected error occurred. Please try again.", 'danger')
+        return redirect(url_for('admin_users'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/admin/user/<int:user_id>/toggle-status', methods=['POST'])
+def admin_toggle_user_status(user_id):
+    """Admin route to activate or deactivate a user account."""
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        flash("Access denied. Only administrators can perform this action.", 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    # Security: Prevent admin from deactivating own account
+    if user_id == session.get('user_id'):
+        flash("Action blocked: You cannot deactivate your own administrator account.", 'danger')
+        return redirect(url_for('admin_users'))
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT user_id, full_name, email, role, status FROM users WHERE user_id = %s", (user_id,))
+        target_user = cursor.fetchone()
+        if not target_user:
+            flash("User not found.", 'danger')
+            return redirect(url_for('admin_users'))
+
+        # Security: Prevent deactivating the last active administrator account
+        if target_user['role'] == 'admin' and target_user['status'] == 'active':
+            cursor.execute("SELECT COUNT(*) AS active_admins FROM users WHERE role = 'admin' AND status = 'active'")
+            active_admins = cursor.fetchone().get('active_admins', 0)
+            if active_admins <= 1:
+                flash("Action blocked: Cannot deactivate the only active administrator account.", 'danger')
+                return redirect(url_for('admin_users'))
+
+        new_status = 'inactive' if target_user['status'] == 'active' else 'active'
+        cursor.execute("UPDATE users SET status = %s WHERE user_id = %s", (new_status, user_id))
+        conn.commit()
+
+        action_word = "deactivated" if new_status == 'inactive' else "activated"
+        flash(f"User account '{target_user['full_name']}' has been {action_word} successfully.", 'success')
+        return redirect(request.referrer or url_for('admin_users'))
+
+    except mysql.connector.Error as e:
+        print(f"Database error toggling user status: {e}")
+        if conn:
+            conn.rollback()
+        flash("Database error occurred while updating account status.", 'danger')
+        return redirect(url_for('admin_users'))
+    except Exception as e:
+        print(f"Unexpected error toggling user status: {e}")
+        if conn:
+            conn.rollback()
+        flash("An unexpected error occurred. Please try again.", 'danger')
+        return redirect(url_for('admin_users'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+def admin_delete_user(user_id):
+    """Admin route to safely delete a user account and cleanly handle dependent records in a transaction."""
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        flash("Access denied. Only administrators can perform this action.", 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+    # Security: Prevent admin from deleting their own account
+    if user_id == session.get('user_id'):
+        flash("Action blocked: You cannot delete your own administrator account.", 'danger')
+        return redirect(url_for('admin_users'))
+
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("SELECT user_id, full_name, email, role FROM users WHERE user_id = %s", (user_id,))
+        target_user = cursor.fetchone()
+        if not target_user:
+            flash("User not found.", 'danger')
+            return redirect(url_for('admin_users'))
+
+        # Security: Prevent deleting the last administrator account
+        if target_user['role'] == 'admin':
+            cursor.execute("SELECT COUNT(*) AS admin_count FROM users WHERE role = 'admin'")
+            admin_count = cursor.fetchone().get('admin_count', 0)
+            if admin_count <= 1:
+                flash("Action blocked: Cannot delete the only administrator account.", 'danger')
+                return redirect(url_for('admin_users'))
+
+        # Execute safe cascading cleanup in a single transaction
+        # 1. Clean up images for stores owned by user
+        cursor.execute("SELECT store_id, image FROM stores WHERE owner_id = %s", (user_id,))
+        owned_stores = cursor.fetchall()
+        for st in owned_stores:
+            img = st.get('image')
+            if img:
+                img_path = os.path.join(app.root_path, 'static', img)
+                if os.path.exists(img_path) and os.path.isfile(img_path):
+                    try:
+                        os.remove(img_path)
+                    except Exception as img_err:
+                        print(f"Error removing store image during user deletion: {img_err}")
+
+        # 2. Delete reviews and favorites linked to stores owned by this user
+        cursor.execute("DELETE FROM favorites WHERE store_id IN (SELECT store_id FROM stores WHERE owner_id = %s)", (user_id,))
+        cursor.execute("DELETE FROM reviews WHERE store_id IN (SELECT store_id FROM stores WHERE owner_id = %s)", (user_id,))
+
+        # 3. Delete stores owned by this user
+        cursor.execute("DELETE FROM stores WHERE owner_id = %s", (user_id,))
+
+        # 4. Delete reviews and favorites authored by this user
+        cursor.execute("DELETE FROM reviews WHERE user_id = %s", (user_id,))
+        cursor.execute("DELETE FROM favorites WHERE user_id = %s", (user_id,))
+
+        # 5. Finally, delete the user record
+        cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        conn.commit()
+
+        flash(f"User account '{target_user['full_name']}' and associated records have been safely deleted.", 'success')
+        return redirect(url_for('admin_users'))
+
+    except mysql.connector.Error as e:
+        print(f"Database error deleting user: {e}")
+        if conn:
+            conn.rollback()
+        flash("Database error occurred while deleting user account.", 'danger')
+        return redirect(url_for('admin_users'))
+    except Exception as e:
+        print(f"Unexpected error deleting user: {e}")
+        if conn:
+            conn.rollback()
+        flash("An unexpected error occurred while deleting user.", 'danger')
+        return redirect(url_for('admin_users'))
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+@app.route('/admin/reports')
+def admin_reports():
+    """Admin reporting dashboard with real-time summary metrics, detailed reports, and Chart.js analytics."""
+    if 'user_id' not in session:
+        flash("Please log in to access this page.", 'warning')
+        return redirect(url_for('login'))
+
+    user_role = session.get('role')
+    if user_role != 'admin':
+        flash("Access denied. Only administrators can access this page.", 'danger')
+        if user_role == 'user':
+            return redirect(url_for('user_dashboard'))
+        elif user_role == 'owner':
+            return redirect(url_for('owner_dashboard'))
+        return redirect(url_for('login'))
+
+    category_filter = request.args.get('category_id', '').strip()
+    city_filter = request.args.get('city', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+
+    # Basic date validation YYYY-MM-DD
+    if date_from and not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from):
+        date_from = ''
+    if date_to and not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to):
+        date_to = ''
+
+    conn = None
+    cursor = None
+
+    summary = {
+        'total_users': 0,
+        'total_shoppers': 0,
+        'total_store_owners': 0,
+        'total_stores': 0,
+        'approved_stores': 0,
+        'pending_stores': 0,
+        'rejected_stores': 0,
+        'total_reviews': 0,
+        'total_favorites': 0
+    }
+
+    categories = []
+    cities = []
+
+    # Detailed report data structures
+    user_roles_data = []
+    user_trends_data = []
+    store_status_data = []
+    store_category_data = []
+    store_city_data = []
+    review_metrics = {'total_reviews': 0, 'avg_rating': 0.0}
+    review_rating_distribution = [0, 0, 0, 0, 0]  # indices 0-4 for 1-5 stars
+    most_reviewed_stores = []
+    popular_stores_favorites = []
+    popular_stores_reviews = []
+    popular_stores_ratings = []
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. Global summary card counts
+        cursor.execute("""
+            SELECT 
+                COUNT(*) AS total_users,
+                SUM(CASE WHEN role = 'user' THEN 1 ELSE 0 END) AS total_shoppers,
+                SUM(CASE WHEN role = 'owner' THEN 1 ELSE 0 END) AS total_store_owners
+            FROM users
+        """)
+        u_stats = cursor.fetchone() or {}
+        summary['total_users'] = int(u_stats.get('total_users') or 0)
+        summary['total_shoppers'] = int(u_stats.get('total_shoppers') or 0)
+        summary['total_store_owners'] = int(u_stats.get('total_store_owners') or 0)
+
+        cursor.execute("""
+            SELECT 
+                COUNT(*) AS total_stores,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_stores,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending_stores,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected_stores
+            FROM stores
+        """)
+        s_stats = cursor.fetchone() or {}
+        summary['total_stores'] = int(s_stats.get('total_stores') or 0)
+        summary['approved_stores'] = int(s_stats.get('approved_stores') or 0)
+        summary['pending_stores'] = int(s_stats.get('pending_stores') or 0)
+        summary['rejected_stores'] = int(s_stats.get('rejected_stores') or 0)
+
+        cursor.execute("SELECT COUNT(*) AS total_reviews FROM reviews")
+        r_stats = cursor.fetchone() or {}
+        summary['total_reviews'] = int(r_stats.get('total_reviews') or 0)
+
+        cursor.execute("SELECT COUNT(*) AS total_favorites FROM favorites")
+        f_stats = cursor.fetchone() or {}
+        summary['total_favorites'] = int(f_stats.get('total_favorites') or 0)
+
+        # Filter option dropdowns
+        cursor.execute("SELECT category_id, category_name FROM categories ORDER BY category_name ASC")
+        categories = cursor.fetchall()
+
+        cursor.execute("SELECT DISTINCT city FROM stores WHERE city IS NOT NULL AND city != '' ORDER BY city ASC")
+        cities = [c['city'] for c in cursor.fetchall()]
+
+        # 2. User Report Queries (with date filters)
+        user_filter_clauses = []
+        user_params = []
+        if date_from:
+            user_filter_clauses.append("DATE(created_at) >= %s")
+            user_params.append(date_from)
+        if date_to:
+            user_filter_clauses.append("DATE(created_at) <= %s")
+            user_params.append(date_to)
+
+        user_where = ("WHERE " + " AND ".join(user_filter_clauses)) if user_filter_clauses else ""
+
+        cursor.execute(f"SELECT role, COUNT(*) AS count FROM users {user_where} GROUP BY role ORDER BY count DESC", tuple(user_params))
+        for r in cursor.fetchall():
+            role_title = 'Shopper' if r['role'] == 'user' else ('Store Owner' if r['role'] == 'owner' else 'Admin')
+            user_roles_data.append({'role': role_title, 'raw_role': r['role'], 'count': int(r['count'])})
+
+        cursor.execute(f"SELECT DATE(created_at) AS reg_date, COUNT(*) AS count FROM users {user_where} GROUP BY DATE(created_at) ORDER BY reg_date ASC", tuple(user_params))
+        for r in cursor.fetchall():
+            date_str = str(r['reg_date']) if r.get('reg_date') else ''
+            user_trends_data.append({'date': date_str, 'count': int(r['count'])})
+
+        # 3. Store Report Queries (with category, city, date filters)
+        store_conds = []
+        store_params = []
+        if category_filter:
+            store_conds.append("s.category_id = %s")
+            store_params.append(category_filter)
+        if city_filter:
+            store_conds.append("s.city = %s")
+            store_params.append(city_filter)
+        if date_from:
+            store_conds.append("DATE(s.created_at) >= %s")
+            store_params.append(date_from)
+        if date_to:
+            store_conds.append("DATE(s.created_at) <= %s")
+            store_params.append(date_to)
+
+        store_where = ("WHERE " + " AND ".join(store_conds)) if store_conds else ""
+
+        # Store counts grouped by approval status
+        cursor.execute(f"SELECT status, COUNT(*) AS count FROM stores s {store_where} GROUP BY status", tuple(store_params))
+        for r in cursor.fetchall():
+            store_status_data.append({'status': str(r['status']).capitalize(), 'raw_status': r['status'], 'count': int(r['count'])})
+
+        # Store counts grouped by category
+        category_join_conds = ["c.category_id = s.category_id"]
+        category_params = []
+        if city_filter:
+            category_join_conds.append("s.city = %s")
+            category_params.append(city_filter)
+        if date_from:
+            category_join_conds.append("DATE(s.created_at) >= %s")
+            category_params.append(date_from)
+        if date_to:
+            category_join_conds.append("DATE(s.created_at) <= %s")
+            category_params.append(date_to)
+
+        cat_query = f"""
+            SELECT c.category_id, c.category_name, COUNT(s.store_id) AS count
+            FROM categories c
+            LEFT JOIN stores s ON {" AND ".join(category_join_conds)}
+            GROUP BY c.category_id, c.category_name
+            ORDER BY count DESC, c.category_name ASC
+        """
+        cursor.execute(cat_query, tuple(category_params))
+        for r in cursor.fetchall():
+            store_category_data.append({'category_name': str(r['category_name']), 'count': int(r['count'])})
+
+        # Store counts grouped by city
+        cursor.execute(f"SELECT s.city, COUNT(*) AS count FROM stores s {store_where} GROUP BY s.city ORDER BY count DESC", tuple(store_params))
+        for r in cursor.fetchall():
+            if r.get('city'):
+                store_city_data.append({'city': str(r['city']), 'count': int(r['count'])})
+
+        # 4. Review Report Queries (filtered by store category, store city, review created_at date)
+        review_conds = []
+        review_params = []
+        if category_filter:
+            review_conds.append("s.category_id = %s")
+            review_params.append(category_filter)
+        if city_filter:
+            review_conds.append("s.city = %s")
+            review_params.append(city_filter)
+        if date_from:
+            review_conds.append("DATE(r.created_at) >= %s")
+            review_params.append(date_from)
+        if date_to:
+            review_conds.append("DATE(r.created_at) <= %s")
+            review_params.append(date_to)
+
+        review_where = ("WHERE " + " AND ".join(review_conds)) if review_conds else ""
+
+        # Total reviews & average rating
+        cursor.execute(f"""
+            SELECT 
+                COUNT(r.review_id) AS total_reviews,
+                COALESCE(ROUND(AVG(r.rating), 2), 0.0) AS avg_rating
+            FROM reviews r
+            JOIN stores s ON r.store_id = s.store_id
+            {review_where}
+        """, tuple(review_params))
+        r_met = cursor.fetchone() or {}
+        review_metrics['total_reviews'] = int(r_met.get('total_reviews') or 0)
+        review_metrics['avg_rating'] = float(r_met.get('avg_rating') or 0.0)
+
+        # Review counts by rating (1 to 5)
+        cursor.execute(f"""
+            SELECT r.rating, COUNT(*) AS count
+            FROM reviews r
+            JOIN stores s ON r.store_id = s.store_id
+            {review_where}
+            GROUP BY r.rating
+            ORDER BY r.rating ASC
+        """, tuple(review_params))
+        for r in cursor.fetchall():
+            rat = r.get('rating')
+            if rat and 1 <= rat <= 5:
+                review_rating_distribution[rat - 1] = int(r['count'])
+
+        # Most-reviewed stores
+        cursor.execute(f"""
+            SELECT 
+                s.store_id, 
+                s.store_name, 
+                s.city,
+                c.category_name,
+                COUNT(r.review_id) AS review_count,
+                COALESCE(ROUND(AVG(r.rating), 1), 0.0) AS avg_rating
+            FROM stores s
+            JOIN categories c ON s.category_id = c.category_id
+            JOIN reviews r ON s.store_id = r.store_id
+            {review_where}
+            GROUP BY s.store_id, s.store_name, s.city, c.category_name
+            ORDER BY review_count DESC, avg_rating DESC
+            LIMIT 10
+        """, tuple(review_params))
+        for r in cursor.fetchall():
+            most_reviewed_stores.append({
+                'store_id': r['store_id'],
+                'store_name': r['store_name'],
+                'city': r['city'],
+                'category_name': r['category_name'],
+                'review_count': int(r['review_count']),
+                'avg_rating': float(r['avg_rating'])
+            })
+
+        # 5. Popular Stores Report Queries
+        # Stores ranked by favorites
+        cursor.execute(f"""
+            SELECT 
+                s.store_id,
+                s.store_name,
+                s.city,
+                c.category_name,
+                COUNT(f.favorite_id) AS favorite_count,
+                COALESCE(ROUND((SELECT AVG(rating) FROM reviews WHERE store_id = s.store_id), 1), 0.0) AS avg_rating
+            FROM stores s
+            JOIN categories c ON s.category_id = c.category_id
+            LEFT JOIN favorites f ON s.store_id = f.store_id
+            {store_where}
+            GROUP BY s.store_id, s.store_name, s.city, c.category_name
+            ORDER BY favorite_count DESC, s.store_name ASC
+            LIMIT 10
+        """, tuple(store_params))
+        for r in cursor.fetchall():
+            popular_stores_favorites.append({
+                'store_id': r['store_id'],
+                'store_name': r['store_name'],
+                'city': r['city'],
+                'category_name': r['category_name'],
+                'favorite_count': int(r['favorite_count']),
+                'avg_rating': float(r['avg_rating'])
+            })
+
+        # Stores ranked by number of reviews
+        cursor.execute(f"""
+            SELECT 
+                s.store_id,
+                s.store_name,
+                s.city,
+                c.category_name,
+                COUNT(r.review_id) AS review_count,
+                COALESCE(ROUND(AVG(r.rating), 1), 0.0) AS avg_rating
+            FROM stores s
+            JOIN categories c ON s.category_id = c.category_id
+            LEFT JOIN reviews r ON s.store_id = r.store_id
+            {store_where}
+            GROUP BY s.store_id, s.store_name, s.city, c.category_name
+            ORDER BY review_count DESC, avg_rating DESC, s.store_name ASC
+            LIMIT 10
+        """, tuple(store_params))
+        for r in cursor.fetchall():
+            popular_stores_reviews.append({
+                'store_id': r['store_id'],
+                'store_name': r['store_name'],
+                'city': r['city'],
+                'category_name': r['category_name'],
+                'review_count': int(r['review_count']),
+                'avg_rating': float(r['avg_rating'])
+            })
+
+        # Stores ranked by average rating
+        cursor.execute(f"""
+            SELECT 
+                s.store_id,
+                s.store_name,
+                s.city,
+                c.category_name,
+                COUNT(r.review_id) AS review_count,
+                COALESCE(ROUND(AVG(r.rating), 1), 0.0) AS avg_rating
+            FROM stores s
+            JOIN categories c ON s.category_id = c.category_id
+            LEFT JOIN reviews r ON s.store_id = r.store_id
+            {store_where}
+            GROUP BY s.store_id, s.store_name, s.city, c.category_name
+            HAVING review_count > 0
+            ORDER BY avg_rating DESC, review_count DESC, s.store_name ASC
+            LIMIT 10
+        """, tuple(store_params))
+        for r in cursor.fetchall():
+            popular_stores_ratings.append({
+                'store_id': r['store_id'],
+                'store_name': r['store_name'],
+                'city': r['city'],
+                'category_name': r['category_name'],
+                'review_count': int(r['review_count']),
+                'avg_rating': float(r['avg_rating'])
+            })
+
+    except mysql.connector.Error as e:
+        print(f"Database error in admin_reports: {e}")
+        flash("Database error occurred while generating reports.", 'danger')
+    except Exception as e:
+        print(f"Unexpected error in admin_reports: {e}")
+        flash("An unexpected error occurred while compiling reports.", 'danger')
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template(
+        'admin_reports.html',
+        full_name=session.get('full_name'),
+        role=user_role,
+        summary=summary,
+        categories=categories,
+        cities=cities,
+        category_filter=category_filter,
+        city_filter=city_filter,
+        date_from=date_from,
+        date_to=date_to,
+        user_roles_data=user_roles_data,
+        user_trends_data=user_trends_data,
+        store_status_data=store_status_data,
+        store_category_data=store_category_data,
+        store_city_data=store_city_data,
+        review_metrics=review_metrics,
+        review_rating_distribution=review_rating_distribution,
+        most_reviewed_stores=most_reviewed_stores,
+        popular_stores_favorites=popular_stores_favorites,
+        popular_stores_reviews=popular_stores_reviews,
+        popular_stores_ratings=popular_stores_ratings
+    )
 
 @app.route('/logout')
 def logout():

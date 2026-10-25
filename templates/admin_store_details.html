@@ -87,6 +87,27 @@
             color: var(--thrift-terracotta);
         }
 
+        .nav-link-custom {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--thrift-text-muted);
+            padding: 0.45rem 0.9rem;
+            border-radius: 50rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link-custom:hover {
+            color: var(--thrift-forest-primary);
+            background: var(--thrift-forest-wash);
+        }
+
+        .nav-link-custom.active {
+            color: var(--thrift-forest-dark);
+            background: var(--thrift-forest-subtle);
+            font-weight: 700;
+        }
+
         /* Details Card */
         .details-card {
             background: #ffffff;
@@ -248,12 +269,28 @@
                 <span>Thrift<span class="brand-accent">Map</span></span>
             </a>
 
+            <!-- Admin Navigation Links -->
+            <div class="d-none d-lg-flex align-items-center gap-1 ms-4">
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link-custom" id="nav-link-dashboard">
+                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="nav-link-custom" id="nav-link-users">
+                    <i class="bi bi-people-fill me-1"></i> Manage Users
+                </a>
+                <a href="{{ url_for('admin_stores') }}" class="nav-link-custom active" id="nav-link-stores">
+                    <i class="bi bi-buildings me-1"></i> Manage Stores
+                </a>
+                <a href="{{ url_for('admin_reports') }}" class="nav-link-custom" id="nav-link-reports">
+                    <i class="bi bi-graph-up-arrow me-1"></i> View Reports
+                </a>
+            </div>
+
             <div class="ms-auto d-flex align-items-center gap-2">
                 <a href="{{ url_for('admin_stores') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-back-stores">
                     <i class="bi bi-arrow-left"></i>
                     <span>All Stores</span>
                 </a>
-                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-dashboard">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex d-lg-none align-items-center gap-1" id="nav-dashboard">
                     <i class="bi bi-speedometer2"></i>
                     <span class="d-none d-md-inline">Dashboard</span>
                 </a>

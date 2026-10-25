@@ -184,9 +184,12 @@ class TestSavedStoresFeature(unittest.TestCase):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute("INSERT INTO favorites (user_id, store_id) VALUES (%s, %s)", (self.user2['user_id'], self.test_store_2['store_id']))
-            conn.commit()
-            self.created_fav_ids.append(cursor.lastrowid)
+            cursor.execute("SELECT favorite_id FROM favorites WHERE user_id = %s AND store_id = %s", (self.user2['user_id'], self.test_store_2['store_id']))
+            fav_row = cursor.fetchone()
+            if not fav_row:
+                cursor.execute("INSERT INTO favorites (user_id, store_id) VALUES (%s, %s)", (self.user2['user_id'], self.test_store_2['store_id']))
+                conn.commit()
+                self.created_fav_ids.append(cursor.lastrowid)
         finally:
             cursor.close()
             conn.close()

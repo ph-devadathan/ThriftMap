@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Manage Users - ThriftMap Admin. Inspect registered shoppers, store owners, roles, and account security.">
+    <title>Manage Users | ThriftMap Admin</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5.3.3 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Harmonized ThriftMap Design Styles -->
+    <style>
+        :root {
+            --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+            --thrift-forest-dark: #0f291e;
+            --thrift-forest-primary: #1b4332;
+            --thrift-forest-medium: #2d6a4f;
+            --thrift-forest-light: #40916c;
+            --thrift-forest-subtle: #d8f3dc;
+            --thrift-forest-wash: #f2f7f4;
+
+            --thrift-amber-gold: #d4a373;
+            --thrift-amber-dark: #b08968;
+            --thrift-terracotta: #c85a17;
+
+            --thrift-bg-page: #fbfbf8;
+            --thrift-text-main: #132a13;
+            --thrift-text-muted: #52796f;
+            --thrift-border: rgba(45, 106, 79, 0.14);
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--thrift-bg-page);
+            color: var(--thrift-text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, h5, h6, .brand-font {
+            font-family: var(--font-heading);
+        }
+
+        /* Navbar */
+        .site-navbar {
+            background: rgba(251, 251, 248, 0.94);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--thrift-border);
+        }
+
+        .brand-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-decoration: none;
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--thrift-forest-dark);
+            letter-spacing: -0.02em;
+        }
+
+        .brand-icon-wrapper {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(27, 67, 50, 0.25);
+        }
+
+        .brand-accent {
+            color: var(--thrift-terracotta);
+        }
+
+        .nav-link-custom {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--thrift-text-muted);
+            padding: 0.45rem 0.9rem;
+            border-radius: 50rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .nav-link-custom:hover {
+            color: var(--thrift-forest-primary);
+            background: var(--thrift-forest-wash);
+        }
+
+        .nav-link-custom.active {
+            color: var(--thrift-forest-dark);
+            background: var(--thrift-forest-subtle);
+            font-weight: 700;
+        }
+
+        /* Hero Banner */
+        .dashboard-hero {
+            background: linear-gradient(145deg, #0b1d15 0%, #15291f 65%, #234737 100%);
+            color: #ffffff;
+            border-radius: 20px;
+            padding: 2rem 2.25rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 16px 36px rgba(15, 41, 30, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .dashboard-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -60px;
+            right: -60px;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(64, 145, 108, 0.3) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Stat Cards */
+        .stat-card {
+            background: #ffffff;
+            border: 1.5px solid var(--thrift-border);
+            border-radius: 16px;
+            padding: 1.25rem 1.4rem;
+            transition: all 0.25s ease;
+            box-shadow: 0 6px 18px rgba(15, 41, 30, 0.04);
+            height: 100%;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 28px rgba(15, 41, 30, 0.08);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--thrift-text-muted);
+            font-weight: 700;
+        }
+
+        .stat-value {
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 2rem;
+            line-height: 1.1;
+        }
+
+        .stat-icon-box {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .icon-box-primary {
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-primary);
+            border: 1px solid var(--thrift-forest-subtle);
+        }
+
+        .icon-box-amber {
+            background: #fff8f0;
+            color: #b08968;
+            border: 1px solid #faedcd;
+        }
+
+        .icon-box-terracotta {
+            background: #fdf2e9;
+            color: var(--thrift-terracotta);
+            border: 1px solid #f9d5c4;
+        }
+
+        .icon-box-success {
+            background: #d8f3dc;
+            color: #2d6a4f;
+            border: 1px solid #b7e4c7;
+        }
+
+        /* Filter Controls */
+        .filter-panel {
+            background: #ffffff;
+            border: 1.5px solid var(--thrift-border);
+            border-radius: 16px;
+            padding: 1.25rem;
+            box-shadow: 0 6px 18px rgba(15, 41, 30, 0.04);
+        }
+
+        .search-input-group .form-control {
+            border-radius: 50rem 0 0 50rem;
+            border: 1.5px solid var(--thrift-border);
+            border-right: none;
+            padding: 0.65rem 1.25rem;
+            font-size: 0.92rem;
+        }
+
+        .search-input-group .form-control:focus {
+            box-shadow: none;
+            border-color: var(--thrift-forest-light);
+        }
+
+        .search-input-group .btn-search {
+            border-radius: 0 50rem 50rem 0;
+            background: var(--thrift-forest-primary);
+            color: #ffffff;
+            border: 1.5px solid var(--thrift-forest-primary);
+            padding: 0.65rem 1.25rem;
+            font-weight: 600;
+        }
+
+        .search-input-group .btn-search:hover {
+            background: var(--thrift-forest-medium);
+        }
+
+        /* Table Card */
+        .table-card {
+            background: #ffffff;
+            border: 1.5px solid var(--thrift-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 6px 20px rgba(15, 41, 30, 0.04);
+        }
+
+        .table-custom {
+            margin-bottom: 0;
+        }
+
+        .table-custom thead th {
+            background: #f8faf8;
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 0.82rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--thrift-text-muted);
+            border-bottom: 1.5px solid var(--thrift-border);
+            padding: 1rem 1.25rem;
+        }
+
+        .table-custom tbody td {
+            padding: 1rem 1.25rem;
+            vertical-align: middle;
+            border-bottom: 1px solid rgba(45, 106, 79, 0.08);
+            font-size: 0.92rem;
+        }
+
+        .table-custom tbody tr:hover {
+            background-color: rgba(216, 243, 220, 0.2);
+        }
+
+        .user-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--thrift-forest-primary), var(--thrift-forest-light));
+            color: #ffffff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.88rem;
+            flex-shrink: 0;
+        }
+
+        /* Status & Role Badges */
+        .badge-role-user {
+            background: #e0f2fe;
+            color: #0369a1;
+            border: 1px solid #bae6fd;
+            font-weight: 600;
+            padding: 0.35rem 0.65rem;
+            border-radius: 50rem;
+            font-size: 0.78rem;
+        }
+
+        .badge-role-owner {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fde68a;
+            font-weight: 600;
+            padding: 0.35rem 0.65rem;
+            border-radius: 50rem;
+            font-size: 0.78rem;
+        }
+
+        .badge-role-admin {
+            background: #d8f3dc;
+            color: #1b4332;
+            border: 1px solid #b7e4c7;
+            font-weight: 700;
+            padding: 0.35rem 0.65rem;
+            border-radius: 50rem;
+            font-size: 0.78rem;
+        }
+
+        .badge-status-active {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #bbf7d0;
+            font-weight: 600;
+            padding: 0.3rem 0.6rem;
+            border-radius: 50rem;
+            font-size: 0.78rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .badge-status-inactive {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fecaca;
+            font-weight: 600;
+            padding: 0.3rem 0.6rem;
+            border-radius: 50rem;
+            font-size: 0.78rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: 3.5rem 1.5rem;
+            text-align: center;
+        }
+
+        .empty-icon-circle {
+            width: 72px;
+            height: 72px;
+            background: var(--thrift-forest-wash);
+            color: var(--thrift-forest-medium);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid var(--thrift-forest-subtle);
+        }
+
+        /* Footer */
+        .site-footer {
+            background: #ffffff;
+            border-top: 1px solid var(--thrift-border);
+            padding: 1.5rem 0;
+            color: var(--thrift-text-muted);
+            font-size: 0.88rem;
+            margin-top: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Site Header / Navbar -->
+    <nav class="site-navbar navbar navbar-expand-lg sticky-top">
+        <div class="container py-1">
+            <a href="{{ url_for('home') }}" class="brand-logo" id="header-brand-logo">
+                <div class="brand-icon-wrapper">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <span>Thrift<span class="brand-accent">Map</span></span>
+            </a>
+
+            <!-- Admin Navigation Links -->
+            <div class="d-none d-lg-flex align-items-center gap-1 ms-4">
+                <a href="{{ url_for('admin_dashboard') }}" class="nav-link-custom" id="nav-link-dashboard">
+                    <i class="bi bi-speedometer2 me-1"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="nav-link-custom active" id="nav-link-users">
+                    <i class="bi bi-people-fill me-1"></i> Manage Users
+                </a>
+                <a href="{{ url_for('admin_stores') }}" class="nav-link-custom" id="nav-link-stores">
+                    <i class="bi bi-buildings me-1"></i> Manage Stores
+                </a>
+                <a href="{{ url_for('admin_reports') }}" class="nav-link-custom" id="nav-link-reports">
+                    <i class="bi bi-graph-up-arrow me-1"></i> View Reports
+                </a>
+            </div>
+
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <span class="badge bg-dark text-white border rounded-pill px-3 py-2 d-none d-sm-inline-flex align-items-center gap-1">
+                    <i class="bi bi-shield-lock-fill text-warning"></i>
+                    <span>Admin Portal</span>
+                </span>
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex d-lg-none align-items-center gap-1">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-logout-btn">
+                    <i class="bi bi-box-arrow-right"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="py-4 py-md-5" id="main-content">
+        <div class="container">
+
+            <!-- Flashed Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  {% set alert_class = 'danger' if category in ['danger', 'error'] else category %}
+                  <div class="alert alert-{{ alert_class }} alert-dismissible fade show d-flex align-items-center gap-2 mb-4 rounded-3 shadow-sm" role="alert">
+                    {% if alert_class == 'success' %}
+                      <i class="bi bi-check-circle-fill fs-5 text-success"></i>
+                    {% elif alert_class == 'warning' %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-warning"></i>
+                    {% elif alert_class == 'info' %}
+                      <i class="bi bi-info-circle-fill fs-5 text-info"></i>
+                    {% else %}
+                      <i class="bi bi-exclamation-triangle-fill fs-5 text-danger"></i>
+                    {% endif %}
+                    <div class="flex-grow-1">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            <!-- Header Hero -->
+            <div class="dashboard-hero mb-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="d-inline-flex align-items-center gap-2 bg-white bg-opacity-10 text-white rounded-pill px-3 py-1 mb-2 small fw-semibold">
+                            <i class="bi bi-people-fill"></i>
+                            <span>User Directory & Security</span>
+                        </div>
+                        <h1 class="h2 fw-bold text-white mb-1">Manage Users</h1>
+                        <p class="text-white-50 mb-0 small">
+                            Inspect registered shoppers, curate roles, manage account activation states, and safeguard community governance.
+                        </p>
+                    </div>
+                    <div class="text-md-end">
+                        <span class="badge bg-white text-dark px-3 py-2 rounded-pill shadow-sm">
+                            <i class="bi bi-person-badge text-primary me-1"></i> Total Users: <strong>{{ counts.total }}</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User Metric Cards -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('admin_users') }}" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="stat-label">Total Users</span>
+                                    <h3 class="stat-value text-dark mb-0" id="stat-total-users">{{ counts.total }}</h3>
+                                </div>
+                                <div class="stat-icon-box icon-box-primary">
+                                    <i class="bi bi-people"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('admin_users', role='user') }}" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="stat-label">Shoppers</span>
+                                    <h3 class="stat-value text-primary mb-0" id="stat-shoppers">{{ counts.shopper }}</h3>
+                                </div>
+                                <div class="stat-icon-box icon-box-primary">
+                                    <i class="bi bi-bag-heart"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('admin_users', role='owner') }}" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="stat-label">Store Owners</span>
+                                    <h3 class="stat-value text-warning mb-0" id="stat-owners">{{ counts.owner }}</h3>
+                                </div>
+                                <div class="stat-icon-box icon-box-amber">
+                                    <i class="bi bi-shop"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-6 col-md-3">
+                    <a href="{{ url_for('admin_users', role='admin') }}" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <span class="stat-label">Administrators</span>
+                                    <h3 class="stat-value text-success mb-0" id="stat-admins">{{ counts.admin }}</h3>
+                                </div>
+                                <div class="stat-icon-box icon-box-success">
+                                    <i class="bi bi-shield-check"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Search and Filter Bar -->
+            <div class="filter-panel mb-4">
+                <form method="GET" action="{{ url_for('admin_users') }}" class="row g-2 align-items-center" id="user-filter-form">
+                    <!-- Search Input -->
+                    <div class="col-lg-5 col-md-6">
+                        <div class="input-group search-input-group">
+                            <input type="text" name="search" class="form-control" placeholder="Search by name or email..." value="{{ search }}" id="input-search-users">
+                            <button class="btn btn-search" type="submit" id="btn-search-users">
+                                <i class="bi bi-search me-1"></i> Search
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Role Filter -->
+                    <div class="col-6 col-md-3 col-lg-3">
+                        <select name="role" class="form-select rounded-pill px-3 py-2 border-secondary-subtle" onchange="this.form.submit()" id="select-filter-role">
+                            <option value="" {% if not role_filter %}selected{% endif %}>All Roles</option>
+                            <option value="user" {% if role_filter == 'user' %}selected{% endif %}>Shopper ({{ counts.shopper }})</option>
+                            <option value="owner" {% if role_filter == 'owner' %}selected{% endif %}>Store Owner ({{ counts.owner }})</option>
+                            <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Administrator ({{ counts.admin }})</option>
+                        </select>
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="col-6 col-md-3 col-lg-2">
+                        <select name="status" class="form-select rounded-pill px-3 py-2 border-secondary-subtle" onchange="this.form.submit()" id="select-filter-status">
+                            <option value="" {% if not status_filter %}selected{% endif %}>All Statuses</option>
+                            <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                            <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                        </select>
+                    </div>
+
+                    <!-- Reset Filters Button -->
+                    <div class="col-12 col-lg-2 text-lg-end">
+                        {% if search or role_filter or status_filter %}
+                            <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary btn-sm rounded-pill px-3 py-2 w-100 w-lg-auto" id="btn-reset-filters">
+                                <i class="bi bi-x-circle me-1"></i> Clear Filters
+                            </a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+
+            <!-- Users Table Card -->
+            <div class="table-card mb-4" id="users-table-container">
+                {% if users %}
+                    <div class="table-responsive">
+                        <table class="table table-custom table-hover align-middle" id="table-users">
+                            <thead>
+                                <tr>
+                                    <th scope="col" style="width: 80px;">User ID</th>
+                                    <th scope="col">User</th>
+                                    <th scope="col">Email</th>
+                                    <th scope="col">Role</th>
+                                    <th scope="col">Account Status</th>
+                                    <th scope="col">Registered</th>
+                                    <th scope="col">Activity</th>
+                                    <th scope="col" class="text-end" style="width: 150px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in users %}
+                                    <tr id="user-row-{{ u.user_id }}">
+                                        <!-- User ID -->
+                                        <td>
+                                            <span class="fw-bold text-muted small">#{{ u.user_id }}</span>
+                                        </td>
+
+                                        <!-- User Name + Avatar -->
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="user-avatar">
+                                                    {{ u.full_name[:1] | upper }}
+                                                </div>
+                                                <div>
+                                                    <div class="fw-bold text-dark">{{ u.full_name }}</div>
+                                                    {% if u.user_id == current_user_id %}
+                                                        <span class="badge bg-secondary-subtle text-dark border small py-0 px-2">You</span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <!-- Email -->
+                                        <td>
+                                            <span class="text-secondary">{{ u.email }}</span>
+                                        </td>
+
+                                        <!-- Role -->
+                                        <td>
+                                            {% if u.role == 'admin' %}
+                                                <span class="badge-role-admin"><i class="bi bi-shield-check me-1"></i>Admin</span>
+                                            {% elif u.role == 'owner' %}
+                                                <span class="badge-role-owner"><i class="bi bi-shop me-1"></i>Store Owner</span>
+                                            {% else %}
+                                                <span class="badge-role-user"><i class="bi bi-bag-heart me-1"></i>Shopper</span>
+                                            {% endif %}
+                                        </td>
+
+                                        <!-- Status -->
+                                        <td>
+                                            {% if u.status == 'inactive' %}
+                                                <span class="badge-status-inactive" id="user-status-badge-{{ u.user_id }}">
+                                                    <i class="bi bi-dash-circle-fill"></i> Inactive
+                                                </span>
+                                            {% else %}
+                                                <span class="badge-status-active" id="user-status-badge-{{ u.user_id }}">
+                                                    <i class="bi bi-check-circle-fill"></i> Active
+                                                </span>
+                                            {% endif %}
+                                        </td>
+
+                                        <!-- Registration Date -->
+                                        <td>
+                                            <div class="small text-muted">
+                                                {% if u.created_at %}
+                                                    {{ u.created_at.strftime('%b %d, %Y') }}
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+
+                                        <!-- Activity Indicators -->
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2 small">
+                                                {% if u.store_count > 0 %}
+                                                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle rounded-pill" title="Stores owned">
+                                                        <i class="bi bi-shop"></i> {{ u.store_count }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if u.review_count > 0 %}
+                                                    <span class="badge bg-info-subtle text-dark border border-info-subtle rounded-pill" title="Reviews written">
+                                                        <i class="bi bi-chat-quote"></i> {{ u.review_count }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if u.favorite_count > 0 %}
+                                                    <span class="badge bg-danger-subtle text-dark border border-danger-subtle rounded-pill" title="Favorites saved">
+                                                        <i class="bi bi-heart-fill text-danger"></i> {{ u.favorite_count }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if u.store_count == 0 and u.review_count == 0 and u.favorite_count == 0 %}
+                                                    <span class="text-muted fst-italic small">No activity</span>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+
+                                        <!-- Actions Dropdown / Modal Triggers -->
+                                        <td class="text-end">
+                                            <div class="btn-group">
+                                                <!-- Quick View Details -->
+                                                <button type="button" 
+                                                        class="btn btn-outline-secondary btn-sm rounded-pill px-2 py-1 me-1"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#modal-user-details"
+                                                        data-user-id="{{ u.user_id }}"
+                                                        data-full-name="{{ u.full_name }}"
+                                                        data-email="{{ u.email }}"
+                                                        data-role="{{ u.role }}"
+                                                        data-status="{{ u.status }}"
+                                                        data-created-at="{{ u.created_at.strftime('%b %d, %Y %I:%M %p') if u.created_at else 'N/A' }}"
+                                                        data-city="{{ u.preferred_city or 'None set' }}"
+                                                        data-categories="{{ u.preferred_categories or 'None set' }}"
+                                                        data-store-count="{{ u.store_count }}"
+                                                        data-review-count="{{ u.review_count }}"
+                                                        data-favorite-count="{{ u.favorite_count }}"
+                                                        id="btn-view-user-{{ u.user_id }}"
+                                                        title="View Details">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+
+                                                <!-- Action Dropdown -->
+                                                <button type="button" class="btn btn-outline-dark btn-sm rounded-pill px-2 py-1 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="dropdown-user-actions-{{ u.user_id }}">
+                                                    <i class="bi bi-three-dots"></i>
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-secondary-subtle">
+                                                    <!-- 1. View User Details Page -->
+                                                    <li>
+                                                        <a class="dropdown-item d-flex align-items-center gap-2" href="{{ url_for('admin_user_details', user_id=u.user_id) }}">
+                                                            <i class="bi bi-person-lines-fill text-primary"></i> View Full Profile
+                                                        </a>
+                                                    </li>
+
+                                                    <!-- 2. Change Role (Only if not self, and Shopper <-> Store Owner) -->
+                                                    {% if u.user_id != current_user_id %}
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li>
+                                                            <button class="dropdown-item d-flex align-items-center gap-2"
+                                                                    type="button"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modal-change-role"
+                                                                    data-user-id="{{ u.user_id }}"
+                                                                    data-full-name="{{ u.full_name }}"
+                                                                    data-current-role="{{ u.role }}"
+                                                                    id="action-change-role-{{ u.user_id }}">
+                                                                <i class="bi bi-arrow-repeat text-warning"></i> Change Role
+                                                            </button>
+                                                        </li>
+
+                                                        <!-- 3. Activate / Deactivate Account -->
+                                                        <li>
+                                                            <button class="dropdown-item d-flex align-items-center gap-2"
+                                                                    type="button"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modal-toggle-status"
+                                                                    data-user-id="{{ u.user_id }}"
+                                                                    data-full-name="{{ u.full_name }}"
+                                                                    data-current-status="{{ u.status }}"
+                                                                    id="action-toggle-status-{{ u.user_id }}">
+                                                                {% if u.status == 'inactive' %}
+                                                                    <i class="bi bi-check-circle text-success"></i> Activate Account
+                                                                {% else %}
+                                                                    <i class="bi bi-slash-circle text-warning"></i> Deactivate Account
+                                                                {% endif %}
+                                                            </button>
+                                                        </li>
+
+                                                        <!-- 4. Delete Account -->
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li>
+                                                            <button class="dropdown-item text-danger d-flex align-items-center gap-2"
+                                                                    type="button"
+                                                                    data-bs-toggle="modal"
+                                                                    data-bs-target="#modal-delete-user"
+                                                                    data-user-id="{{ u.user_id }}"
+                                                                    data-full-name="{{ u.full_name }}"
+                                                                    data-store-count="{{ u.store_count }}"
+                                                                    data-review-count="{{ u.review_count }}"
+                                                                    data-favorite-count="{{ u.favorite_count }}"
+                                                                    id="action-delete-user-{{ u.user_id }}">
+                                                                <i class="bi bi-trash"></i> Delete User
+                                                            </button>
+                                                        </li>
+                                                    {% else %}
+                                                        <li><hr class="dropdown-divider"></li>
+                                                        <li>
+                                                            <span class="dropdown-item-text text-muted small fst-italic">
+                                                                Current active admin account
+                                                            </span>
+                                                        </li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Footer -->
+                    {% if total_pages > 1 %}
+                        <div class="d-flex flex-column flex-md-row align-items-center justify-content-between p-3 border-top bg-light">
+                            <div class="small text-muted mb-2 mb-md-0" id="pagination-info">
+                                Showing <strong>{{ (page - 1) * per_page + 1 }}</strong> to <strong>{{ [page * per_page, total_count]|min }}</strong> of <strong>{{ total_count }}</strong> users
+                            </div>
+                            <nav aria-label="User navigation">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('admin_users', page=page-1, search=search, role=role_filter, status=status_filter) }}" aria-label="Previous">
+                                            &laquo; Prev
+                                        </a>
+                                    </li>
+                                    {% for p in range(1, total_pages + 1) %}
+                                        <li class="page-item {% if p == page %}active{% endif %}">
+                                            <a class="page-link" href="{{ url_for('admin_users', page=p, search=search, role=role_filter, status=status_filter) }}">{{ p }}</a>
+                                        </li>
+                                    {% endfor %}
+                                    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                                        <a class="page-link" href="{{ url_for('admin_users', page=page+1, search=search, role=role_filter, status=status_filter) }}" aria-label="Next">
+                                            Next &raquo;
+                                        </a>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+                    {% endif %}
+
+                {% else %}
+                    <!-- Clear Empty State -->
+                    <div class="empty-state" id="empty-state-users">
+                        <div class="empty-icon-circle">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <h4 class="fw-bold mb-2 text-dark">No Users Found</h4>
+                        <p class="text-muted mb-3 mx-auto" style="max-width: 440px;">
+                            {% if search or role_filter or status_filter %}
+                                We couldn't find any users matching your search filters. Try clearing your filters or using different keywords.
+                            {% else %}
+                                There are currently no registered users in the database.
+                            {% endif %}
+                        </p>
+                        {% if search or role_filter or status_filter %}
+                            <a href="{{ url_for('admin_users') }}" class="btn btn-primary rounded-pill px-4">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i> Reset All Filters
+                            </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal 1: Quick View User Details -->
+    <div class="modal fade" id="modal-user-details" tabindex="-1" aria-labelledby="modalUserDetailsLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="modal-header bg-dark text-white border-0 py-3">
+                    <h5 class="modal-title fw-bold" id="modalUserDetailsLabel">
+                        <i class="bi bi-person-badge me-2 text-warning"></i>User Account Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="text-center mb-4">
+                        <div class="user-avatar mx-auto mb-2" style="width: 56px; height: 56px; font-size: 1.4rem;" id="modal-detail-avatar">
+                            U
+                        </div>
+                        <h4 class="fw-bold text-dark mb-0" id="modal-detail-name">User Full Name</h4>
+                        <p class="text-muted small mb-2" id="modal-detail-email">user@example.com</p>
+                        <div class="d-flex align-items-center justify-content-center gap-2">
+                            <span class="badge bg-secondary" id="modal-detail-role">Role</span>
+                            <span class="badge bg-success" id="modal-detail-status">Active</span>
+                        </div>
+                    </div>
+
+                    <div class="list-group list-group-flush border rounded-3 mb-3">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">User ID</span>
+                            <span class="fw-bold text-dark" id="modal-detail-id">#0</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Registration Date</span>
+                            <span class="fw-semibold text-dark" id="modal-detail-date">N/A</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Preferred City</span>
+                            <span class="fw-semibold text-dark" id="modal-detail-city">None set</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span class="text-muted small">Preferred Categories</span>
+                            <span class="fw-semibold text-dark text-truncate" style="max-width: 220px;" id="modal-detail-categories">None set</span>
+                        </div>
+                    </div>
+
+                    <!-- Platform Activity Badges -->
+                    <h6 class="fw-bold text-dark mb-2 small text-uppercase letter-spacing-1">Activity Overview</h6>
+                    <div class="row g-2 text-center">
+                        <div class="col-4">
+                            <div class="p-2 border rounded-3 bg-light">
+                                <div class="fw-bold fs-5 text-dark" id="modal-detail-stores">0</div>
+                                <div class="text-muted small">Stores</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border rounded-3 bg-light">
+                                <div class="fw-bold fs-5 text-dark" id="modal-detail-reviews">0</div>
+                                <div class="text-muted small">Reviews</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 border rounded-3 bg-light">
+                                <div class="fw-bold fs-5 text-dark" id="modal-detail-favorites">0</div>
+                                <div class="text-muted small">Favorites</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                    <a href="#" class="btn btn-primary rounded-pill px-4" id="modal-detail-fullprofile-link">
+                        Full Profile Page →
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Change User Role -->
+    <div class="modal fade" id="modal-change-role" tabindex="-1" aria-labelledby="modalChangeRoleLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <form method="POST" action="" id="form-change-role">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold" id="modalChangeRoleLabel">
+                            <i class="bi bi-arrow-repeat text-warning me-2"></i>Change User Role
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="mb-3">
+                            Modify access permissions and role for <strong id="modal-role-username">User</strong>.
+                        </p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold small text-muted">Select New Role</label>
+                            <select name="new_role" class="form-select rounded-3 py-2" id="modal-role-select" required>
+                                <option value="user">Shopper (Standard User)</option>
+                                <option value="owner">Store Owner (Can Manage Stores)</option>
+                            </select>
+                            <div class="form-text small text-muted mt-2">
+                                Role switching is strictly supported between Shopper and Store Owner. Administrator privileges cannot be assigned via this control.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning rounded-pill px-4 fw-semibold text-dark" id="btn-confirm-change-role">
+                            Update Role
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Activate / Deactivate Account -->
+    <div class="modal fade" id="modal-toggle-status" tabindex="-1" aria-labelledby="modalToggleStatusLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <form method="POST" action="" id="form-toggle-status">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold" id="modalToggleStatusLabel">
+                            <i class="bi bi-shield-exclamation text-warning me-2"></i>Update Account Status
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="mb-2" id="modal-status-text">
+                            Are you sure you want to update the status of this user account?
+                        </p>
+                        <div class="alert alert-warning border border-warning-subtle small rounded-3 mb-0" id="modal-status-warning">
+                            Deactivating an account will immediately block the user from logging in until reactivated by an administrator.
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning rounded-pill px-4 fw-semibold text-dark" id="btn-confirm-toggle-status">
+                            Confirm Status Change
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 4: Delete User Confirmation -->
+    <div class="modal fade" id="modal-delete-user" tabindex="-1" aria-labelledby="modalDeleteUserLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <form method="POST" action="" id="form-delete-user">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold text-danger" id="modalDeleteUserLabel">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm User Deletion
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="mb-3">
+                            You are about to permanently delete user account <strong id="modal-delete-username">User</strong>.
+                        </p>
+
+                        <div class="p-3 border rounded-3 bg-light mb-3">
+                            <h6 class="fw-bold small text-uppercase text-muted mb-2">Associated Records to be Handled:</h6>
+                            <ul class="small mb-0 ps-3" id="modal-delete-records-list">
+                                <li>User Profile and Preferences</li>
+                                <li id="delete-stat-stores">Owned Stores: <strong>0</strong></li>
+                                <li id="delete-stat-reviews">Reviews written: <strong>0</strong></li>
+                                <li id="delete-stat-favorites">Favorites saved: <strong>0</strong></li>
+                            </ul>
+                        </div>
+
+                        <div class="alert alert-danger border-0 small rounded-3 mb-0">
+                            <strong>Warning:</strong> This action is irreversible. All associated store listings, reviews, and favorites will be permanently removed. The last administrator account cannot be deleted.
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold" id="btn-confirm-delete-user">
+                            Delete Permanently
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Site Footer -->
+    <footer class="site-footer">
+        <div class="container text-center">
+            <p class="mb-1">© 2026 ThriftMap. The Ultimate Thrift Shop Finder. All rights reserved.</p>
+            <p class="small text-muted mb-0">Logged in as <strong>{{ full_name }}</strong> ({{ role }})</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5 Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <!-- Interactive Modal Wire-up Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 1. Details Modal
+            const modalDetails = document.getElementById('modal-user-details');
+            if (modalDetails) {
+                modalDetails.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const userId = button.getAttribute('data-user-id');
+                    const fullName = button.getAttribute('data-full-name');
+                    const email = button.getAttribute('data-email');
+                    const role = button.getAttribute('data-role');
+                    const status = button.getAttribute('data-status');
+                    const createdAt = button.getAttribute('data-created-at');
+                    const city = button.getAttribute('data-city');
+                    const categories = button.getAttribute('data-categories');
+                    const storeCount = button.getAttribute('data-store-count') || '0';
+                    const reviewCount = button.getAttribute('data-review-count') || '0';
+                    const favoriteCount = button.getAttribute('data-favorite-count') || '0';
+
+                    document.getElementById('modal-detail-avatar').textContent = (fullName || 'U').charAt(0).toUpperCase();
+                    document.getElementById('modal-detail-name').textContent = fullName;
+                    document.getElementById('modal-detail-email').textContent = email;
+                    document.getElementById('modal-detail-id').textContent = '#' + userId;
+                    document.getElementById('modal-detail-date').textContent = createdAt;
+                    document.getElementById('modal-detail-city').textContent = city;
+                    document.getElementById('modal-detail-categories').textContent = categories;
+                    document.getElementById('modal-detail-stores').textContent = storeCount;
+                    document.getElementById('modal-detail-reviews').textContent = reviewCount;
+                    document.getElementById('modal-detail-favorites').textContent = favoriteCount;
+
+                    const roleBadge = document.getElementById('modal-detail-role');
+                    roleBadge.textContent = role === 'admin' ? 'Administrator' : (role === 'owner' ? 'Store Owner' : 'Shopper');
+
+                    const statusBadge = document.getElementById('modal-detail-status');
+                    statusBadge.textContent = status === 'inactive' ? 'Inactive' : 'Active';
+                    statusBadge.className = status === 'inactive' ? 'badge bg-danger' : 'badge bg-success';
+
+                    document.getElementById('modal-detail-fullprofile-link').href = '/admin/user/' + userId;
+                });
+            }
+
+            // 2. Change Role Modal
+            const modalChangeRole = document.getElementById('modal-change-role');
+            if (modalChangeRole) {
+                modalChangeRole.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const userId = button.getAttribute('data-user-id');
+                    const fullName = button.getAttribute('data-full-name');
+                    const currentRole = button.getAttribute('data-current-role');
+
+                    document.getElementById('modal-role-username').textContent = fullName;
+                    document.getElementById('form-change-role').action = '/admin/user/' + userId + '/change-role';
+
+                    const select = document.getElementById('modal-role-select');
+                    // Suggest the opposite role
+                    select.value = currentRole === 'owner' ? 'user' : 'owner';
+                });
+            }
+
+            // 3. Toggle Status Modal
+            const modalToggleStatus = document.getElementById('modal-toggle-status');
+            if (modalToggleStatus) {
+                modalToggleStatus.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const userId = button.getAttribute('data-user-id');
+                    const fullName = button.getAttribute('data-full-name');
+                    const currentStatus = button.getAttribute('data-current-status');
+
+                    const isDeactivating = (currentStatus === 'active');
+                    const actionWord = isDeactivating ? 'deactivate' : 'activate';
+
+                    document.getElementById('modal-status-text').innerHTML =
+                        'Are you sure you want to <strong>' + actionWord + '</strong> the account for <strong>' + fullName + '</strong>?';
+
+                    const warningBox = document.getElementById('modal-status-warning');
+                    if (isDeactivating) {
+                        warningBox.textContent = 'Deactivating an account will immediately block the user from logging in until reactivated by an administrator.';
+                        warningBox.className = 'alert alert-warning border border-warning-subtle small rounded-3 mb-0';
+                    } else {
+                        warningBox.textContent = 'Activating this account will immediately restore login access for this user.';
+                        warningBox.className = 'alert alert-success border border-success-subtle small rounded-3 mb-0';
+                    }
+
+                    document.getElementById('form-toggle-status').action = '/admin/user/' + userId + '/toggle-status';
+                });
+            }
+
+            // 4. Delete User Modal
+            const modalDeleteUser = document.getElementById('modal-delete-user');
+            if (modalDeleteUser) {
+                modalDeleteUser.addEventListener('show.bs.modal', function (event) {
+                    const button = event.relatedTarget;
+                    const userId = button.getAttribute('data-user-id');
+                    const fullName = button.getAttribute('data-full-name');
+                    const storeCount = button.getAttribute('data-store-count') || '0';
+                    const reviewCount = button.getAttribute('data-review-count') || '0';
+                    const favoriteCount = button.getAttribute('data-favorite-count') || '0';
+
+                    document.getElementById('modal-delete-username').textContent = fullName;
+                    document.getElementById('delete-stat-stores').innerHTML = 'Owned Stores: <strong>' + storeCount + '</strong>';
+                    document.getElementById('delete-stat-reviews').innerHTML = 'Reviews written: <strong>' + reviewCount + '</strong>';
+                    document.getElementById('delete-stat-favorites').innerHTML = 'Favorites saved: <strong>' + favoriteCount + '</strong>';
+
+                    document.getElementById('form-delete-user').action = '/admin/user/' + userId + '/delete';
+                });
+            }
+        });
+    </script>
+</body>
+</html>
