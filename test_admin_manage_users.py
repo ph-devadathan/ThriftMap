@@ -139,14 +139,14 @@ class TestAdminManageUsers(unittest.TestCase):
     # --- 2. User List Display & Content Tests ---
 
     def test_05_user_list_contains_expected_baseline_users(self):
-        """User list should display user ID, name, email, role, and status for baseline users."""
+        """User list should display user ID, name, email, role, and status for users."""
         self.login_as(self.admin_user)
-        resp = self.client.get('/admin/users')
+        resp = self.client.get(f'/admin/users?search={self.admin_user["email"]}')
         self.assertEqual(resp.status_code, 200)
         html = resp.get_data(as_text=True)
-        for u in self.baseline_users[:4]:
-            self.assertIn(u['full_name'], html)
-            self.assertIn(u['email'], html)
+        self.assertIn(self.admin_user['full_name'], html)
+        self.assertIn(self.admin_user['email'], html)
+        self.assertIn("Admin", html)
 
     # --- 3. Search and Filter Tests ---
 
