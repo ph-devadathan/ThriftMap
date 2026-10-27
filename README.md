@@ -234,19 +234,6 @@ Before deploying or sharing a public demo:
 -   Use HTTPS and review authentication, authorization, input
     validation, and upload handling before production use.
 
-## Screenshots and demo
-
-Screenshots can be added under `docs/screenshots/` and embedded here,
-for example:
-
-``` markdown
-![ThriftMap home page](docs/screenshots/home-page.png)
-```
-
-Add screenshots of the home page, map discovery, store details,
-recommendations, and admin reports after capturing them from your
-running application. No live demo URL is listed because one has not been
-verified.
 
 ## Contributing
 
