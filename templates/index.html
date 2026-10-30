@@ -45,6 +45,7 @@
                             <li class="nav-item"><a href="{{ url_for('admin_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
                         {% else %}
                             <li class="nav-item"><a href="{{ url_for('user_dashboard') }}" class="nav-link" id="nav-dashboard">Dashboard</a></li>
+                            <li class="nav-item"><a href="{{ url_for('manage_profile') }}" class="nav-link" id="nav-profile">Profile</a></li>
                         {% endif %}
                         <li class="nav-item"><a href="{{ url_for('logout') }}" class="nav-link text-danger" id="nav-logout">Logout</a></li>
                     {% else %}

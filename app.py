@@ -5,6 +5,7 @@ import re
 import math
 from flask import Flask, render_template, request, redirect, url_for, flash, session, abort, jsonify
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import mysql.connector
 from config import DB_HOST, DB_USER, DB_PASSWORD, DB_NAME
 from recommendation_engine import HybridRecommendationEngine
@@ -878,8 +879,15 @@ def login():
                 flash("No account found with this email address.", 'danger')
                 return render_template('login.html', email=email), 400
 
-            # Verify password
-            if user['password'] != password:
+            # Verify password (supports hashed and existing plain-text passwords)
+            password_matches = (user['password'] == password)
+            if not password_matches and user['password']:
+                try:
+                    password_matches = check_password_hash(user['password'], password)
+                except Exception:
+                    password_matches = False
+
+            if not password_matches:
                 flash("Incorrect password.", 'danger')
                 return render_template('login.html', email=email), 400
 
@@ -1038,6 +1046,215 @@ def update_preferences():
         flash("An error occurred while updating your preferences.", 'danger')
 
     return redirect(url_for('user_dashboard') + '#recommendations-section')
+
+@app.route('/manage-profile', methods=['GET', 'POST'], endpoint='manage_profile')
+@app.route('/profile', methods=['GET', 'POST'], endpoint='profile')
+@app.route('/user/profile', methods=['GET', 'POST'], endpoint='user_profile')
+def manage_profile():
+    """Allow logged-in users to view and update their full name, email, and password."""
+    if 'user_id' not in session:
+        flash("Please log in to manage your profile.", 'warning')
+        return redirect(url_for('login'))
+
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+
+    # Security check: prevent modifying another user's profile via form tampering
+    form_user_id = request.form.get('user_id')
+    if form_user_id and str(form_user_id).strip() != str(user_id):
+        abort(403)
+
+    if request.method == 'POST':
+        fullname = request.form.get('fullname') or request.form.get('full_name', '')
+        fullname = fullname.strip()
+        email = request.form.get('email', '').strip()
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+
+        errors = []
+
+        # Validate Full Name
+        if not fullname:
+            errors.append("Full Name is required.")
+        elif len(fullname) < 2:
+            errors.append("Full Name must be at least 2 characters.")
+        elif len(fullname) > 100:
+            errors.append("Full Name cannot exceed 100 characters.")
+
+        # Validate Email
+        if not email:
+            errors.append("Email address is required.")
+        elif len(email) > 191:
+            errors.append("Email address cannot exceed 191 characters.")
+        elif not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            errors.append("Please enter a valid email address.")
+
+        # Validate Password Change if any password field is provided
+        password_changing = bool(current_password or new_password or confirm_password)
+        if password_changing:
+            if not current_password:
+                errors.append("Current password is required to change password.")
+            if not new_password:
+                errors.append("New password is required.")
+            elif len(new_password) < 6:
+                errors.append("Password must be at least 6 characters long.")
+            elif len(new_password) > 255:
+                errors.append("Password cannot exceed 255 characters.")
+
+            if not confirm_password:
+                errors.append("Please confirm your new password.")
+            elif new_password and confirm_password and new_password != confirm_password:
+                errors.append("New password and confirmation do not match.")
+
+            if current_password and new_password and current_password == new_password:
+                errors.append("New password must be different from current password.")
+
+        conn = None
+        cursor = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+
+            # Retrieve current user details for verification
+            cursor.execute("SELECT user_id, full_name, email, password, role, status, created_at FROM users WHERE user_id = %s", (user_id,))
+            current_user = cursor.fetchone()
+            if not current_user:
+                session.clear()
+                flash("User account not found. Please log in again.", 'danger')
+                return redirect(url_for('login'))
+
+            # Check for duplicate email across other users
+            cursor.execute("SELECT user_id FROM users WHERE email = %s AND user_id != %s", (email, user_id))
+            duplicate_user = cursor.fetchone()
+            if duplicate_user:
+                errors.append("An account with this email address already exists.")
+
+            # Verify current password if password change requested
+            if password_changing and current_password:
+                stored_pw = current_user.get('password', '')
+                pw_valid = (stored_pw == current_password)
+                if not pw_valid and stored_pw:
+                    try:
+                        pw_valid = check_password_hash(stored_pw, current_password)
+                    except Exception:
+                        pw_valid = False
+
+                if not pw_valid:
+                    errors.append("Current password is incorrect.")
+
+            if errors:
+                for err in errors:
+                    flash(err, 'danger')
+                # Render template with submitted values and 400 error status
+                current_user['full_name'] = fullname
+                current_user['email'] = email
+                return render_template('manage_profile.html', user=current_user, active_nav='profile'), 400
+
+            # Execute update
+            if password_changing:
+                hashed_pw = generate_password_hash(new_password)
+                cursor.execute(
+                    "UPDATE users SET full_name = %s, email = %s, password = %s WHERE user_id = %s",
+                    (fullname, email, hashed_pw, user_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET full_name = %s, email = %s WHERE user_id = %s",
+                    (fullname, email, user_id)
+                )
+
+            conn.commit()
+
+            # Update session variables
+            session['full_name'] = fullname
+
+            if password_changing:
+                flash("Your profile and password have been successfully updated!", 'success')
+            else:
+                flash("Your profile has been successfully updated!", 'success')
+
+            return redirect(url_for('manage_profile'))
+
+        except mysql.connector.Error as e:
+            print(f"Database error updating profile: {e}")
+            if conn:
+                conn.rollback()
+            if e.errno == 1062:
+                flash("An account with this email address already exists.", 'danger')
+            else:
+                flash("Database error occurred while updating profile.", 'danger')
+            return render_template('manage_profile.html', user={'user_id': user_id, 'full_name': fullname, 'email': email, 'role': user_role}, active_nav='profile'), 400
+        except Exception as e:
+            print(f"Unexpected error updating profile: {e}")
+            if conn:
+                conn.rollback()
+            flash("An unexpected error occurred. Please try again.", 'danger')
+            return render_template('manage_profile.html', user={'user_id': user_id, 'full_name': fullname, 'email': email, 'role': user_role}, active_nav='profile'), 500
+        finally:
+            if cursor:
+                cursor.close()
+            if conn and conn.is_connected():
+                conn.close()
+
+    # GET request - load user data and activity metrics
+    conn = None
+    cursor = None
+    user_data = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT user_id, full_name, email, role, status, preferred_categories, preferred_city, created_at
+            FROM users
+            WHERE user_id = %s
+        """, (user_id,))
+        user_data = cursor.fetchone()
+        if not user_data:
+            session.clear()
+            flash("User account not found. Please log in again.", 'danger')
+            return redirect(url_for('login'))
+
+        # Fetch activity statistics
+        cursor.execute("SELECT COUNT(*) AS review_count FROM reviews WHERE user_id = %s", (user_id,))
+        review_count = cursor.fetchone()['review_count']
+        cursor.execute("SELECT COUNT(*) AS favorite_count FROM favorites WHERE user_id = %s", (user_id,))
+        favorite_count = cursor.fetchone()['favorite_count']
+
+        user_data['review_count'] = review_count
+        user_data['favorite_count'] = favorite_count
+
+    except Exception as e:
+        print(f"Error loading user profile: {e}")
+        flash("An error occurred while loading your profile data.", 'danger')
+        user_data = {
+            'user_id': user_id,
+            'full_name': session.get('full_name', ''),
+            'email': '',
+            'role': user_role,
+            'review_count': 0,
+            'favorite_count': 0
+        }
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
+    return render_template('manage_profile.html', user=user_data, active_nav='profile')
+
+@app.route('/profile/<int:target_user_id>', methods=['GET', 'POST'])
+@app.route('/manage-profile/<int:target_user_id>', methods=['GET', 'POST'])
+def profile_by_id(target_user_id):
+    """Enforce ownership: prevent logged-in users from viewing or editing another user's profile."""
+    if 'user_id' not in session:
+        flash("Please log in to manage your profile.", 'warning')
+        return redirect(url_for('login'))
+
+    if session.get('user_id') != target_user_id:
+        abort(403)
+
+    return manage_profile()
 
 @app.route('/my-reviews')
 def my_reviews():

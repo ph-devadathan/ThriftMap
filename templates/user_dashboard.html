@@ -269,6 +269,10 @@
                     <i class="bi bi-map"></i>
                     <span class="d-none d-md-inline">Map View</span>
                 </a>
+                <a href="{{ url_for('manage_profile') }}" class="btn btn-outline-secondary btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-btn-profile">
+                    <i class="bi bi-person-gear"></i>
+                    <span class="d-none d-md-inline">Manage Profile</span>
+                </a>
                 <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm px-3 rounded-pill d-inline-flex align-items-center gap-1" id="nav-logout-btn">
                     <i class="bi bi-box-arrow-right"></i>
                     <span>Logout</span>
@@ -431,6 +435,23 @@
                             <p class="menu-desc">See your store ratings, community recommendations, and thrift haul stories.</p>
                         </div>
                         <span class="menu-arrow" style="color: var(--thrift-terracotta);">View Your Reviews <i class="bi bi-arrow-right"></i></span>
+                    </a>
+                </div>
+
+                <!-- 7. Manage Profile (Active) -->
+                <div class="col-md-6 col-lg-4">
+                    <a href="{{ url_for('manage_profile') }}" class="menu-card" id="menu-manage-profile">
+                        <div>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="menu-icon-box icon-box-primary mb-0">
+                                    <i class="bi bi-person-gear"></i>
+                                </div>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1 small">Account Settings</span>
+                            </div>
+                            <h3 class="menu-title mt-2">Manage Profile</h3>
+                            <p class="menu-desc">View and update your personal details, email address, and security password.</p>
+                        </div>
+                        <span class="menu-arrow" style="color: var(--thrift-forest-primary);">Manage Account <i class="bi bi-arrow-right"></i></span>
                     </a>
                 </div>
             </div>
